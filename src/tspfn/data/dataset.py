@@ -1,5 +1,6 @@
 import torch
-from tspfn.data import PriorHyperParameters, SCM
+
+from tspfn.data import SCM, PriorHyperParameters
 
 
 class SyntheticDataset(torch.utils.data.IterableDataset):

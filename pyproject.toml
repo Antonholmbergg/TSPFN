@@ -65,6 +65,8 @@ extra-dependencies = [
 "mlflow",
 "polars",
 "matplotlib",
+"networkx",
+"pydantic",
 ]
 
 [tool.hatch.envs.hatch-test]

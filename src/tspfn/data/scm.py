@@ -14,30 +14,33 @@ for each member of the dataset (n times):
 1. sample noise variables from eps_i from the sampled distributions
 2. compute the value 
 """
-import torch
-from tspfn.data import PriorHyperParameters
+import networkx as nx
 import numpy as np
-from torch.nn.utils import prune
+
+from tspfn.data import PriorHyperParameters
 
 
-class SCM(torch.nn.Module):
-    def __init__(self, prior_hp : PriorHyperParameters, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.n_layers = prior_hp.n_layers
-        self.n_nodes = prior_hp.n_nodes
-        rng = np.random.default_rng()
-        
-        self.layers = [
-            prune.random_structured(torch.nn.Linear(in_features=self.n_nodes, out_features=self.n_nodes,), "weight", amount=rng.random(1)[0]*0.5, dim=1) for _ in range(self.n_layers)
-            ]
-
-    def forward(self, x: torch.Tensor, *args, **kwargs):
-        for layer in self.layers:
-            print(layer.weight)
-            x = layer(x)
-        return x
+class SCM:
+    def __init__(self, prior_hp: PriorHyperParameters):
+        self.graph = nx.gnr_graph(n=prior_hp.n_nodes_total, p=prior_hp.redirection_probablility, seed=prior_hp.rng.integers(10_000, 100_000))
 
 
-if __name__ == "__main__":
-    scm = SCM(PriorHyperParameters())
-    print(scm.forward(torch.Tensor([1] * scm.layers[0].in_features)))
+if __name__ == '__main__':
+    gnr_graph = SCM()
+    print(f"\nIs the graph a Directed Acyclic Graph (DAG)? {nx.is_directed_acyclic_graph(gnr_graph)}")
+
+    import matplotlib.pyplot as plt
+
+    fig = plt.figure(figsize=(8, 6))
+    pos = nx.spring_layout(gnr_graph, seed=42)
+    nx.draw(gnr_graph, pos, with_labels=True, node_color='lightblue',
+            edge_color='gray', arrows=True, arrowsize=10, node_size=700)
+    plt.title("Generated GNR Graph")
+    fig.savefig("gnr_graph.png")
+
+
+
+
+# if __name__ == "__main__":
+#     scm = SCM(PriorHyperParameters())
+#     print(scm.forward(torch.Tensor([1] * scm.layers[0].in_features)))
