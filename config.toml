@@ -1,0 +1,20 @@
+[prior]
+n_datasets = 3
+log_normal_a = 15
+log_normal_b = 10
+gamma_alpha = 0
+gamma_beta = 1
+lognorm_s  = 1
+redirection_probablility = 0.1
+random_state = 42
+
+edge_probability_weights.nn = 1.0
+edge_probability_weights.tree = 0.0
+edge_probability_weights.categorical = 0.0
+
+nn_width = 10
+nn_depth = 1
+nn_activations = [
+    "ReLU",
+    "Hardswish",
+]
