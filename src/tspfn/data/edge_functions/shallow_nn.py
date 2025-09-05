@@ -1,5 +1,4 @@
 import torch
-from torch.nn.utils import prune
 
 from tspfn.data import PriorHyperParameters
 

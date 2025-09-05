@@ -1,76 +1,65 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
 name = "tspfn"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
-requires-python = ">=3.10"
-license = "MIT"
+requires-python = ">=3.13"
 keywords = []
-authors = [
-  { name = "H. Anton", email = "anton.holmberg@live.com" },
-]
+authors = [{ name = "H. Anton", email = "anton.holmberg@live.com" }]
 classifiers = [
-  "Development Status :: 4 - Beta",
-  "Programming Language :: Python",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["torch"]
+dependencies = [
+ "lightning>=2.5.4",
+ "networkx>=3.5",
+ "polars>=1.33.0",
+ "pydantic>=2.11.7",
+ "torch>=2.8.0",
+]
 
 [project.urls]
 Documentation = "https://github.com/Antonholmbergg/TSPFN#readme"
 Issues = "https://github.com/Antonholmbergg/TSPFN/issues"
 Source = "https://github.com/Antonholmbergg/TSPFN"
 
-[tool.hatch.version]
-path = "src/tspfn/__about__.py"
-
-[tool.hatch.envs.types]
-extra-dependencies = [
-  "mypy>=1.0.0",
-]
-[tool.hatch.envs.types.scripts]
-check = "mypy --install-types --non-interactive {args:src/tspfn tests}"
-check-strict = "mypy --install-types --non-interactive --disallow-untyped-defs {args:src/ml_gcloud_utils_plotting tests}"
 
 [tool.coverage.run]
 source_pkgs = ["tspfn", "tests"]
 branch = true
 parallel = true
-omit = [
-  "src/tspfn/__about__.py",
-]
+omit = ["src/tspfn/__about__.py"]
 
 [tool.coverage.paths]
 tspfn = ["src/tspfn", "*/tspfn/src/tspfn"]
 tests = ["tests", "*/tspfn/tests"]
 
 [tool.coverage.report]
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+
+[dependency-groups]
+dev = [
+    "matplotlib>=3.10.6",
+    "mlflow>=3.3.2",
+    "mypy>=1.17.1",
+    "mypy-extensions>=1.1.0",
+    "pytest>=8.4.2",
+    "scipy-stubs>=1.16.1.1",
+    "types-networkx>=3.5.0.20250901",
 ]
+#types = ["types-"]
 
-[tool.hatch.envs.default]
-python = "3.12"
-extra-dependencies = [
-"mlflow",
-"polars",
-"matplotlib",
-"networkx",
-"pydantic",
-]
+[tool.mypy]
+python_version = 3.13
 
-[tool.hatch.envs.hatch-test]
-python = "3.12"
-
-[[tool.hatch.envs.hatch-test.matrix]]
-python = ["3.12"]
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
