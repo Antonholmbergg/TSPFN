@@ -1,6 +1,6 @@
 import torch
 
-from tspfn.data import SCM, PriorHyperParameters
+from tspfn.data.prior import PriorHyperParameters, get_scm
 
 
 class SyntheticDataset(torch.utils.data.IterableDataset):
@@ -9,10 +9,10 @@ class SyntheticDataset(torch.utils.data.IterableDataset):
         self.num_samples = num_samples
 
     def __iter__(self):
-        for _ in range(self.num_samples):
-            self.scm = SCM(self.prior_hp)
-            # For now, just yield random data.
-            # In a real implementation, you would use self.scm to generate samples.
-            input_data = torch.randn(self.scm.n_nodes)
-            target_data = self.scm(input_data)
-            yield input_data, target_data
+        return self
+
+    def __next__(self):
+        scm = get_scm(self.prior_hp)
+        input_data = torch.randn(scm.n_nodes)
+        features, labels = scm(input_data)
+        return features, labels
