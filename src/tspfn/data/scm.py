@@ -46,8 +46,8 @@ class SCM:
 
         non_root_nodes = [node for node in self.graph.nodes if node not in self.root_nodes]
         self.n_feature_nodes = int(len(non_root_nodes) * self.feature_node_fraction)
-        feature_nodes = self.rng.choice(non_root_nodes, self.n_feature_nodes, replace=False)
-        node_attributes = {k: {"feature_node": k in feature_nodes} for k in self.graph.nodes}
+        self.feature_nodes = self.rng.choice(non_root_nodes, self.n_feature_nodes, replace=False)
+        node_attributes = {k: {"feature_node": k in self.feature_nodes} for k in self.graph.nodes}
         nx.set_node_attributes(self.graph, node_attributes)
 
     def __populate_edge_functions(self) -> None:
@@ -93,6 +93,17 @@ class SCM:
                     self.graph.nodes[successor_node]["latent_variables"] += mapping["function"](
                         self.graph.nodes[node]["latent_variables"]
                     )
+        
+        dataset = {}
+        for node in self.feature_nodes:
+            continuos_feature_mapping = self.rng.multinomial(10, np.ones(node_dim)/node_dim)/node_dim
+            continuos_feature = np.dot(self.graph.nodes[node]["latent_variables"], continuos_feature_mapping)
+            print(continuos_feature, continuos_feature.shape)
+            dataset[node] = continuos_feature
+        return pl.DataFrame(dataset)
+
+
+
 
 
 def get_scm(prior_hp: PriorHyperParameters) -> SCM:
@@ -104,7 +115,8 @@ if __name__ == "__main__":
     rng = np.random.default_rng(101)
     n_rows = 100
     node_dim = 8
-    gnr_graph.proppagate(n_rows, node_dim)
+    dataset = gnr_graph.proppagate(n_rows, node_dim)
+    print(dataset)
 
     import matplotlib.pyplot as plt
 
