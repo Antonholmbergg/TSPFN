@@ -42,7 +42,7 @@ class SCM:
 
 
 def get_scm(prior_hp: PriorHyperParameters) -> SCM:
-    return SCM(25, 0.3, 42)
+    return SCM(25, 0.3, 42)    
 
 
 if __name__ == "__main__":
