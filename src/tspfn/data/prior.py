@@ -31,9 +31,7 @@ class PriorHyperParameters:
         self.rng = np.random.default_rng(self.random_state)
 
         self.lognorm = lognorm(s=conf.lognorm_s, loc=conf.log_normal_a, scale=conf.log_normal_b)
-        self.n_nodes_total = self.lognorm.rvs(
-            size=1, random_state=self.rng.integers(10_000, 100_000)
-        )
+        self.n_nodes_total = self.lognorm.rvs(size=1, random_state=self.rng.integers(10_000, 100_000))
         self.n_features = lognorm.rvs(
             conf.log_normal_a,
             conf.log_normal_b,

@@ -9,8 +9,7 @@ class nn_edge(torch.nn.Module):
         self.n_layers = prior_hp.nn_depth
         self.n_nodes = prior_hp.nn_width
         self.layers = [
-            torch.nn.Linear(in_features=self.n_nodes, out_features=self.n_nodes)
-            for _ in range(self.n_layers)
+            torch.nn.Linear(in_features=self.n_nodes, out_features=self.n_nodes) for _ in range(self.n_layers)
         ]
         self.activation = torch.nn.ReLU()
 

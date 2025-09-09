@@ -1,6 +1,6 @@
 import logging
 from typing import Callable
-
+from functools import partial
 import numpy as np
 
 logger = logging.getLogger()
@@ -13,7 +13,7 @@ class EdgeFunctionSampler:
     ) -> None:
         logger.warning("This constructor is not actually iplermnted yet")
         self.function_prob = [0.3, 0.5, 0.2]
-        self.functions = [np.exp, np.cos, np.pow]
+        self.functions = [np.exp, np.cos, np.square]
         self.rng = np.random.default_rng(1)
 
     def sample(self) -> Callable:
