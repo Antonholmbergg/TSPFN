@@ -1,6 +1,6 @@
 import networkx as nx
-import numpy as np
 import polars as pl
+import torch
 
 from tspfn.data.edge_functions import EdgeFunctionSampler
 from tspfn.data.prior import PriorHyperParameters
@@ -16,13 +16,13 @@ class SCM:
         self,
         n_nodes_total: int,
         redirection_probablility: float,
-        random_state: int,
+        random_state: torch.int,
         feature_node_fraction: float,
         edge_function_sampler: EdgeFunctionSampler,
         n_rows: int,
         node_dim: int,
     ):
-        self.rng = np.random.default_rng(random_state)
+        self.torch_generator = torch.Generator().manual_seed(random_state)
         self.n_rows = n_rows
         self.node_dim = node_dim
         self.graph = nx.gnr_graph(
@@ -45,12 +45,18 @@ class SCM:
         """
         non_root_nodes = [node for node in self.graph.nodes if node not in self.root_nodes]
         self.n_feature_nodes = int(len(non_root_nodes) * self.feature_node_fraction)
-        self.feature_nodes = self.rng.choice(non_root_nodes, self.n_feature_nodes, replace=False)
+        # self.feature_nodes = self.rng.choice(non_root_nodes, self.n_feature_nodes, replace=False)
+        equal_probability_weigths = torch.ones(len(non_root_nodes))
+        feature_node_indicies = torch.multinomial(
+            equal_probability_weigths, self.n_feature_nodes, replacement=False, generator=self.torch_generator
+        )
+        self.feature_nodes = [non_root_nodes[i] for i in feature_node_indicies]
+
         node_attributes = {}
         for node in self.graph.nodes:
             node_attributes[node] = {
                 "feature_node": node in self.feature_nodes,
-                "latent_variables": np.zeros((self.n_rows, self.node_dim)),
+                "latent_variables": torch.zeros((self.n_rows, self.node_dim)),
             }
         nx.set_node_attributes(self.graph, node_attributes)
 
@@ -69,7 +75,9 @@ class SCM:
 
     def __initialize_root_nodes(self) -> None:
         for root_node in self.root_nodes:
-            self.graph.nodes[root_node]["latent_variables"] += self.rng.normal(0, 1, (self.n_rows, self.node_dim))
+            self.graph.nodes[root_node]["latent_variables"] += torch.normal(
+                0, 1, size=(self.n_rows, self.node_dim), generator=self.torch_generator
+            )
 
     def __proppagate(
         self,
@@ -83,13 +91,18 @@ class SCM:
                         self.graph.nodes[node]["latent_variables"]
                     )
 
-    def get_dataset(self) -> pl.DataFrame:
+    def get_dataset(self, n_draws_feature_mapping: int = 10) -> pl.DataFrame:
         self.__initialize_root_nodes()
         self.__proppagate()
         dataset = {}
         for node in self.feature_nodes:
-            continuos_feature_mapping = self.rng.multinomial(10, np.ones(self.node_dim) / self.node_dim) / self.node_dim
-            continuos_feature = np.dot(self.graph.nodes[node]["latent_variables"], continuos_feature_mapping)
+            continuos_feature_mapping = torch.zeros(self.node_dim)
+            for ind in torch.multinomial(
+                torch.ones(self.node_dim), n_draws_feature_mapping, replacement=True, generator=self.torch_generator
+            ):
+                continuos_feature_mapping[ind] += 1 / n_draws_feature_mapping
+
+            continuos_feature = torch.matmul(self.graph.nodes[node]["latent_variables"], continuos_feature_mapping)
             dataset[f"feature_{int(node)}"] = continuos_feature
         return pl.DataFrame(dataset)
 
@@ -108,7 +121,7 @@ def get_scm(prior_hp: PriorHyperParameters) -> SCM:
 
 if __name__ == "__main__":
     gnr_graph = get_scm(1)
-    rng = np.random.default_rng(101)
+    # rng = np.random.default_rng(101)
     n_rows = 100
     node_dim = 8
     dataset = gnr_graph.get_dataset()
