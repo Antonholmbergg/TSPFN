@@ -16,7 +16,7 @@ class SCM:
         self,
         n_nodes_total: int,
         redirection_probablility: float,
-        random_state: torch.int,
+        random_state: torch.Int32,
         feature_node_fraction: float,
         edge_function_sampler: EdgeFunctionSampler,
         n_rows: int,
@@ -45,7 +45,6 @@ class SCM:
         """
         non_root_nodes = [node for node in self.graph.nodes if node not in self.root_nodes]
         self.n_feature_nodes = int(len(non_root_nodes) * self.feature_node_fraction)
-        # self.feature_nodes = self.rng.choice(non_root_nodes, self.n_feature_nodes, replace=False)
         equal_probability_weigths = torch.ones(len(non_root_nodes))
         feature_node_indicies = torch.multinomial(
             equal_probability_weigths, self.n_feature_nodes, replacement=False, generator=self.torch_generator
