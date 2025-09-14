@@ -19,8 +19,8 @@ class EdgeFunctionSampler:
         torch_generator: torch.Generator | None = None,
     ) -> None:
         logger.warning("This constructor is not actually iplermnted yet")
-        self.function_prob = [0.3, 0.5, 0.2]
-        self.functions = [nn.ReLU(), nn.LeakyReLU(), nn.Hardswish()]
+        self.function_prob = [1]
+        self.functions = [small_nn]
         self.rng = np.random.default_rng(1)
         self.torch_generator = torch_generator
 
@@ -80,7 +80,8 @@ def __sample_activation_function(torch_generator: torch.Generator) -> Callable:
         partial(torch.pow, 2),
         partial(torch.argsort, dim=0)
     ]
-    torch.randint(0, len(abailable_activation_functions), (1,), generator=torch_generator)
+    choice = torch.randint(0, len(abailable_activation_functions), (1,), generator=torch_generator)
+    return abailable_activation_functions[choice.item()]
 
 
 def small_nn(
@@ -93,7 +94,7 @@ def small_nn(
     operation, squaring, power functions, smooth ReLU 59
     , step function
     and modulo operation."""
-    output_function = __sample_activation_function[torch_generator]
+    output_function = __sample_activation_function(torch_generator)
     _, columns = latent_variable.shape
     w = torch.empty(columns, columns)
     b = torch.empty(1, columns)

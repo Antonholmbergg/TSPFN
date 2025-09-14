@@ -16,7 +16,7 @@ class SCM:
         self,
         n_nodes_total: int,
         redirection_probablility: float,
-        random_state: torch.Int32,
+        random_state: int,
         feature_node_fraction: float,
         edge_function_sampler: EdgeFunctionSampler,
         n_rows: int,
@@ -56,6 +56,7 @@ class SCM:
             node_attributes[node] = {
                 "feature_node": node in self.feature_nodes,
                 "latent_variables": torch.zeros((self.n_rows, self.node_dim)),
+                "catecorical_feature": None,
             }
         nx.set_node_attributes(self.graph, node_attributes)
 
@@ -87,7 +88,7 @@ class SCM:
                 # This should actally always have one and only one value except for node 0
                 for successor_node, mapping in edge_mappings.items():
                     self.graph.nodes[successor_node]["latent_variables"] += mapping["function"](
-                        self.graph.nodes[node]["latent_variables"]
+                        self.graph.nodes[node]["latent_variables"], torch_generator=self.torch_generator
                     )
 
     def get_dataset(self, n_draws_feature_mapping: int = 10) -> pl.DataFrame:
