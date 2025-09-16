@@ -1,6 +1,7 @@
-from tspfn.data.utils import gamma
 import torch
 from torch.testing import assert_close
+
+from tspfn.data.utils import gamma
 
 
 def test_gamma():

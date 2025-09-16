@@ -14,9 +14,11 @@ non_linearity_mapping = {
     "relu": nn.ReLU(),
 }
 
+
 class EdgeMappingOutput(TypedDict):
     latent_variable: Required[torch.Tensor]
     categorical_feature: NotRequired[torch.Tensor]
+
 
 class EdgeFunctionSampler:
     def __init__(
@@ -29,16 +31,11 @@ class EdgeFunctionSampler:
         cat_feature_map = partial(categorical_feature_mapping, **categorical_feature_mapping_kwargs)
         self.functions = [small_nn, cat_feature_map]
         self.function_prob = torch.Tensor([0.8, 0.2])
-        
 
-        self.available_mappings = [
-            small_nn, cat_feature_map
-        ]
+        self.available_mappings = [small_nn, cat_feature_map]
 
     def sample(self) -> Callable:
-        function_index = torch.multinomial(
-            self.function_prob, 1, replacement=False, generator=self.generator
-        )
+        function_index = torch.multinomial(self.function_prob, 1, replacement=False, generator=self.generator)
         return self.functions[function_index]
 
 
@@ -64,7 +61,7 @@ def decision_tree():
 
 def categorical_feature_mapping(
     latent_variables: torch.Tensor,
-    generator: torch.Generator, 
+    generator: torch.Generator,
     *,
     gamma_shape: float,
     gamma_rate: float,
@@ -113,12 +110,18 @@ def categorical_feature_mapping(
     embeddings = torch.normal(0, 1, (n_categories, dim), generator=generator)
 
     distances = torch.hstack(
-        [torch.unsqueeze(torch.sum(torch.square(latent_variables - torch.unsqueeze(prototypes[i, :], dim=0)), dim=1), dim=1) for i in range(prototypes.shape[0])],
+        [
+            torch.unsqueeze(
+                torch.sum(torch.square(latent_variables - torch.unsqueeze(prototypes[i, :], dim=0)), dim=1), dim=1
+            )
+            for i in range(prototypes.shape[0])
+        ],
     )
     category_indicies = torch.argmin(distances, dim=-1)
     output_embeddings = embeddings[category_indicies]
-    output : EdgeMappingOutput = {"latent_variable": output_embeddings, "categorical_feature": category_indicies}
+    output: EdgeMappingOutput = {"latent_variable": output_embeddings, "categorical_feature": category_indicies}
     return output
+
 
 def __sample_activation_function(generator: torch.Generator) -> Callable:
     abailable_activation_functions = [
@@ -152,7 +155,7 @@ def small_nn(
     nn.init.xavier_normal_(w, generator=generator)
     nn.init.xavier_normal_(b, generator=generator)
     projected_variables = output_function(latent_variables @ w.T + b)
-    output : EdgeMappingOutput = {"latent_variable": projected_variables}
+    output: EdgeMappingOutput = {"latent_variable": projected_variables}
     return output
 
 
@@ -279,9 +282,6 @@ class DecisionTreeEdgeMapping:
             for i in range(latent_variables.shape[0]):
                 outputs.append(self._traverse_tree(latent_variables[i], self.root))
             return np.array(outputs)
-
-
-
 
 
 if __name__ == "__main__":

@@ -87,7 +87,7 @@ class SCM:
                 edge_mappings = self.graph[node]
                 # This should actally always have one and only one value except for node 0
                 for successor_node, mapping in edge_mappings.items():
-                    mapping_output : EdgeMappingOutput = mapping["function"](
+                    mapping_output: EdgeMappingOutput = mapping["function"](
                         self.graph.nodes[node]["latent_variables"], generator=self.generator
                     )
                     latent_variables = mapping_output.get("latent_variable")
@@ -99,7 +99,6 @@ class SCM:
                         else:
                             # This is questionable but I'm not sure what to do in this situation yet. ignore it? concatenate it?
                             self.graph.nodes[successor_node]["categorical_feature"] += cat_feature
-
 
     def get_dataset(self, n_draws_feature_mapping: int = 10) -> pl.DataFrame:
         self.__initialize_root_nodes()
@@ -113,7 +112,7 @@ class SCM:
                 continuos_feature_mapping[ind] += 1 / n_draws_feature_mapping
             categorical_feature = self.graph.nodes[node]["categorical_feature"]
             if categorical_feature is not None:
-                dataset[f"cat_feature_{int(node)}"] = categorical_feature    
+                dataset[f"cat_feature_{int(node)}"] = categorical_feature
             else:
                 continuos_feature = torch.matmul(self.graph.nodes[node]["latent_variables"], continuos_feature_mapping)
                 dataset[f"feature_{int(node)}"] = continuos_feature
@@ -123,11 +122,11 @@ class SCM:
 def get_scm(prior_hp: PriorHyperParameters) -> SCM:
     generator = torch.Generator().manual_seed(845)
     categorical_feature_mapping_kwargs = {
-        "gamma_shape": 2.,
-        "gamma_rate": 1.,
+        "gamma_shape": 2.0,
+        "gamma_rate": 1.0,
         "min_categories": 2,
         "max_categories": 20,
-        }
+    }
     efs = EdgeFunctionSampler(generator, categorical_feature_mapping_kwargs)
     return SCM(
         45,
