@@ -2,7 +2,7 @@ import networkx as nx
 import polars as pl
 import torch
 
-from tspfn.data.edge_functions import EdgeFunctionSampler
+from tspfn.data.edge_functions import EdgeFunctionSampler, EdgeMappingOutput
 from tspfn.data.prior import PriorHyperParameters
 
 
@@ -22,7 +22,7 @@ class SCM:
         n_rows: int,
         node_dim: int,
     ):
-        self.torch_generator = torch.Generator().manual_seed(random_state)
+        self.generator = torch.Generator().manual_seed(random_state)
         self.n_rows = n_rows
         self.node_dim = node_dim
         self.graph = nx.gnr_graph(
@@ -47,7 +47,7 @@ class SCM:
         self.n_feature_nodes = int(len(non_root_nodes) * self.feature_node_fraction)
         equal_probability_weigths = torch.ones(len(non_root_nodes))
         feature_node_indicies = torch.multinomial(
-            equal_probability_weigths, self.n_feature_nodes, replacement=False, generator=self.torch_generator
+            equal_probability_weigths, self.n_feature_nodes, replacement=False, generator=self.generator
         )
         self.feature_nodes = [non_root_nodes[i] for i in feature_node_indicies]
 
@@ -56,7 +56,7 @@ class SCM:
             node_attributes[node] = {
                 "feature_node": node in self.feature_nodes,
                 "latent_variables": torch.zeros((self.n_rows, self.node_dim)),
-                "catecorical_feature": None,
+                "categorical_feature": None,
             }
         nx.set_node_attributes(self.graph, node_attributes)
 
@@ -76,7 +76,7 @@ class SCM:
     def __initialize_root_nodes(self) -> None:
         for root_node in self.root_nodes:
             self.graph.nodes[root_node]["latent_variables"] += torch.normal(
-                0, 1, size=(self.n_rows, self.node_dim), generator=self.torch_generator
+                0, 1, size=(self.n_rows, self.node_dim), generator=self.generator
             )
 
     def __proppagate(
@@ -87,9 +87,19 @@ class SCM:
                 edge_mappings = self.graph[node]
                 # This should actally always have one and only one value except for node 0
                 for successor_node, mapping in edge_mappings.items():
-                    self.graph.nodes[successor_node]["latent_variables"] += mapping["function"](
-                        self.graph.nodes[node]["latent_variables"], torch_generator=self.torch_generator
+                    mapping_output : EdgeMappingOutput = mapping["function"](
+                        self.graph.nodes[node]["latent_variables"], generator=self.generator
                     )
+                    latent_variables = mapping_output.get("latent_variable")
+                    cat_feature = mapping_output.get("categorical_feature")
+                    self.graph.nodes[successor_node]["latent_variables"] += latent_variables
+                    if cat_feature is not None:
+                        if self.graph.nodes[successor_node]["categorical_feature"] is None:
+                            self.graph.nodes[successor_node]["categorical_feature"] = cat_feature
+                        else:
+                            # This is questionable but I'm not sure what to do in this situation yet. ignore it? concatenate it?
+                            self.graph.nodes[successor_node]["categorical_feature"] += cat_feature
+
 
     def get_dataset(self, n_draws_feature_mapping: int = 10) -> pl.DataFrame:
         self.__initialize_root_nodes()
@@ -98,22 +108,33 @@ class SCM:
         for node in self.feature_nodes:
             continuos_feature_mapping = torch.zeros(self.node_dim)
             for ind in torch.multinomial(
-                torch.ones(self.node_dim), n_draws_feature_mapping, replacement=True, generator=self.torch_generator
+                torch.ones(self.node_dim), n_draws_feature_mapping, replacement=True, generator=self.generator
             ):
                 continuos_feature_mapping[ind] += 1 / n_draws_feature_mapping
-
-            continuos_feature = torch.matmul(self.graph.nodes[node]["latent_variables"], continuos_feature_mapping)
-            dataset[f"feature_{int(node)}"] = continuos_feature
+            categorical_feature = self.graph.nodes[node]["categorical_feature"]
+            if categorical_feature is not None:
+                dataset[f"cat_feature_{int(node)}"] = categorical_feature    
+            else:
+                continuos_feature = torch.matmul(self.graph.nodes[node]["latent_variables"], continuos_feature_mapping)
+                dataset[f"feature_{int(node)}"] = continuos_feature
         return pl.DataFrame(dataset)
 
 
 def get_scm(prior_hp: PriorHyperParameters) -> SCM:
+    generator = torch.Generator().manual_seed(845)
+    categorical_feature_mapping_kwargs = {
+        "gamma_shape": 2.,
+        "gamma_rate": 1.,
+        "min_categories": 2,
+        "max_categories": 20,
+        }
+    efs = EdgeFunctionSampler(generator, categorical_feature_mapping_kwargs)
     return SCM(
         45,
         0.1,
         42,
         0.3,
-        EdgeFunctionSampler(),
+        efs,
         100,
         8,
     )

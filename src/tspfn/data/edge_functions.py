@@ -1,13 +1,12 @@
 import logging
 from collections.abc import Callable
-from typing import Literal
+from typing import Literal, TypedDict, Required, NotRequired
 from functools import partial
 import numpy as np
 import torch
 from torch import nn
 from dataclasses import dataclass
 from tspfn.data.utils import gamma
-from scipy.spatial.distance import cdist
 
 logger = logging.getLogger()
 
@@ -15,24 +14,32 @@ non_linearity_mapping = {
     "relu": nn.ReLU(),
 }
 
+class EdgeMappingOutput(TypedDict):
+    latent_variable: Required[torch.Tensor]
+    categorical_feature: NotRequired[torch.Tensor]
 
 class EdgeFunctionSampler:
     def __init__(
         self,
-        torch_generator: torch.Generator | None = None,
+        generator: torch.Generator,
+        categorical_feature_mapping_kwargs: dict[str, float | int],
     ) -> None:
-        logger.warning("This constructor is not actually iplermnted yet")
-        self.function_prob = [1]
-        self.functions = [small_nn]
-        self.rng = np.random.default_rng(1)
-        self.torch_generator = torch_generator
+        logger.warning("This constructor is not actually implemented properly yet")
+        self.generator = generator
+        cat_feature_map = partial(categorical_feature_mapping, **categorical_feature_mapping_kwargs)
+        self.functions = [small_nn, cat_feature_map]
+        self.function_prob = torch.Tensor([0.8, 0.2])
+        
 
         self.available_mappings = [
-            small_nn,
+            small_nn, cat_feature_map
         ]
 
     def sample(self) -> Callable:
-        return self.functions[self.rng.choice(len(self.function_prob), p=self.function_prob)]
+        function_index = torch.multinomial(
+            self.function_prob, 1, replacement=False, generator=self.generator
+        )
+        return self.functions[function_index]
 
 
 def __normalize():
@@ -55,22 +62,65 @@ def decision_tree():
     pass
 
 
-def cat_feature_mapping():
-    """feature discretization: to generate categorical features
-    from the numerical vectors at each node, we map the vector to the
-    index of the nearest neighbour in a set of per node randomly sampled
-    vectors {p1, …, pK} for a feature with K categories. This discrete index
-    will be observed in the feature set as a categorical feature. We sample
-    the number of categories K from a rounded gamma distribution with
-    an offset of 2 to yield a minimum number of classes of 2. To further
-    use these discrete class assignments in the computational graph,
-    they need to be embedded as continuous values. We sample a second
-    set of embedding vectors p p{ , …,  }K1 for each class and transform
-    the classes to these embeddings."""
-    pass
+def categorical_feature_mapping(
+    latent_variables: torch.Tensor,
+    generator: torch.Generator, 
+    *,
+    gamma_shape: float,
+    gamma_rate: float,
+    min_categories: int,
+    max_categories: int,
+) -> EdgeMappingOutput:
+    """Apply categorical feature discretization mapping as an edge mapping in the SCM.
 
+        Process:
+        1. Find nearest prototype vector for each input
+        2. Map to categorical index
+        3. Embed categorical index back to continuous space
 
-def __sample_activation_function(torch_generator: torch.Generator) -> Callable:
+    Parameters
+    ----------
+    latent_variables : torch.Tensor
+        _description_
+    gamma_shape : float, optional
+        _description_, by default 2.0
+    gamma_rate : float, optional
+        _description_, by default 1.0
+    min_categories : int, optional
+        _description_, by default 2
+    max_categories : int, optional
+        _description_, by default 20
+    generator : torch.Generator | None, optional
+        _description_, by default None
+
+    Returns
+    -------
+    tuple[torch.Tensor, torch.Tensor]
+        _description_
+    """
+    dim = latent_variables.shape[1]
+    gamma_shape = torch.Tensor([gamma_shape])
+    gamma_rate = torch.Tensor([gamma_rate])
+
+    gamma_sample = gamma(gamma_shape, gamma_rate, (1,), generator)
+    n_categories = max(
+        min_categories, min(max_categories, int(torch.round(gamma_sample, decimals=0).item()) + min_categories)
+    )
+    # Initialize the prototype vectors and embeddings. For now only sampled from a standard normal distribution.
+    # ::TODO Look into if these embeddings should be more diverse, other distributions, non-independence etc.
+    # Also could it make sense to orthogonalize them?
+    prototypes = torch.normal(0, 1, (n_categories, dim), generator=generator)
+    embeddings = torch.normal(0, 1, (n_categories, dim), generator=generator)
+
+    distances = torch.hstack(
+        [torch.unsqueeze(torch.sum(torch.square(latent_variables - torch.unsqueeze(prototypes[i, :], dim=0)), dim=1), dim=1) for i in range(prototypes.shape[0])],
+    )
+    category_indicies = torch.argmin(distances, dim=-1)
+    output_embeddings = embeddings[category_indicies]
+    output : EdgeMappingOutput = {"latent_variable": output_embeddings, "categorical_feature": category_indicies}
+    return output
+
+def __sample_activation_function(generator: torch.Generator) -> Callable:
     abailable_activation_functions = [
         nn.ReLU(),
         nn.LeakyReLU(),
@@ -83,25 +133,27 @@ def __sample_activation_function(torch_generator: torch.Generator) -> Callable:
         partial(torch.pow, 2),
         partial(torch.argsort, dim=0),
     ]
-    choice = torch.randint(0, len(abailable_activation_functions), (1,), generator=torch_generator)
+    choice = torch.randint(0, len(abailable_activation_functions), (1,), generator=generator)
     return abailable_activation_functions[choice.item()]
 
 
 def small_nn(
     latent_variables: torch.Tensor,
-    torch_generator: torch.Generator,
+    generator: torch.Generator,
 ):
     """
     ::TODO step function
     and modulo operation as activation functions.
     """
-    output_function = __sample_activation_function(torch_generator)
+    output_function = __sample_activation_function(generator)
     _, columns = latent_variables.shape
     w = torch.empty(columns, columns)
     b = torch.empty(1, columns)
-    nn.init.xavier_normal_(w, generator=torch_generator)
-    nn.init.xavier_normal_(b, generator=torch_generator)
-    return output_function(latent_variables @ w.T + b)
+    nn.init.xavier_normal_(w, generator=generator)
+    nn.init.xavier_normal_(b, generator=generator)
+    projected_variables = output_function(latent_variables @ w.T + b)
+    output : EdgeMappingOutput = {"latent_variable": projected_variables}
+    return output
 
 
 @dataclass
@@ -123,7 +175,7 @@ class DecisionTreeEdgeMapping:
         latent_dim: int,
         max_depth: int,
         min_samples_split: int,
-        torch_generator: torch.Generator | None,
+        generator: torch.Generator | None,
     ):
         """
         Initialize decision tree edge mapping.
@@ -137,7 +189,7 @@ class DecisionTreeEdgeMapping:
         self.latent_dim = latent_dim
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
-        self.torch_generator = torch_generator
+        self.generator = generator
         self.root = None
         self.selected_features = None
 
@@ -148,7 +200,7 @@ class DecisionTreeEdgeMapping:
         n_features_to_use = torch.randint(1, self.latent_dim)
         equal_probability_weigths = torch.ones(self.latent_dim)
         self.selected_features = torch.multinomial(
-            equal_probability_weigths, n_features_to_use, replacement=False, generator=self.torch_generator
+            equal_probability_weigths, n_features_to_use, replacement=False, generator=self.generator
         )
         self.root = self._build_random_tree(depth=0)
 
@@ -229,66 +281,8 @@ class DecisionTreeEdgeMapping:
             return np.array(outputs)
 
 
-def categorical_feature_mapping(
-    latent_variables: torch.Tensor,
-    gamma_shape: float = 2.0,
-    gamma_rate: float = 1.0,
-    min_categories: int = 2,
-    max_categories: int = 20,
-    generator: torch.Generator | None = None,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Apply categorical feature discretization mapping as an edge mapping in the SCM.
 
-        Process:
-        1. Find nearest prototype vector for each input
-        2. Map to categorical index
-        3. Embed categorical index back to continuous space
-
-    Parameters
-    ----------
-    latent_variables : torch.Tensor
-        _description_
-    gamma_shape : float, optional
-        _description_, by default 2.0
-    gamma_rate : float, optional
-        _description_, by default 1.0
-    min_categories : int, optional
-        _description_, by default 2
-    max_categories : int, optional
-        _description_, by default 20
-    generator : torch.Generator | None, optional
-        _description_, by default None
-
-    Returns
-    -------
-    tuple[torch.Tensor, torch.Tensor]
-        _description_
-    """
-    dim = latent_variables.shape[1]
-    gamma_shape = torch.Tensor([gamma_shape])
-    gamma_rate = torch.Tensor([gamma_rate])
-
-    gamma_sample = gamma(gamma_shape, gamma_rate, (1,), generator)
-    n_categories = max(
-        min_categories, min(max_categories, int(torch.round(gamma_sample, decimals=0).item()) + min_categories)
-    )
-    # Initialize the prototype vectors and embeddings. For now only sampled from a standard normal distribution.
-    # ::TODO Look into if these embeddings should be more diverse, other distributions, non-independence etc.
-    # Also could it make sense to orthogonalize them?
-    prototypes = torch.normal(0, 1, (n_categories, dim), generator=generator)
-    embeddings = torch.normal(0, 1, (n_categories, dim), generator=generator)
-
-    distances = torch.hstack(
-        [torch.unsqueeze(torch.sum(torch.square(latent_variables - torch.unsqueeze(prototypes[i, :], dim=0)), dim=1), dim=1) for i in range(prototypes.shape[0])],
-    )
-    category_indicies = torch.argmin(distances, dim=-1)
-    output_embeddings = embeddings[category_indicies]
-    return output_embeddings, category_indicies.reshape(-1, 1)
 
 
 if __name__ == "__main__":
-    generator = torch.Generator().manual_seed(33485289)
-    latent_variables = torch.normal(1, 4, size=(100, 6), generator=generator)
-    cont_features, category = categorical_feature_mapping(latent_variables, generator=generator)
-    print(latent_variables, cont_features, category)
-    print(latent_variables.shape, cont_features.shape, category.shape)
+    pass
