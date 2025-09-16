@@ -1,6 +1,8 @@
+from __future__ import annotations
 import logging
 from collections.abc import Callable
 from typing import Literal, TypedDict, Required, NotRequired
+
 from functools import partial
 import numpy as np
 import torch
@@ -25,12 +27,16 @@ class EdgeFunctionSampler:
         self,
         generator: torch.Generator,
         categorical_feature_mapping_kwargs: dict[str, float | int],
+        tree_feature_mapping_kwargs: dict[str, float | int],
+        nn_feature_mapping_kwargs: dict[str, float | int],
     ) -> None:
-        logger.warning("This constructor is not actually implemented properly yet")
+        logger.warning("This constructor is only mostly implemented")
         self.generator = generator
         cat_feature_map = partial(categorical_feature_mapping, **categorical_feature_mapping_kwargs)
-        self.functions = [small_nn, cat_feature_map]
-        self.function_prob = torch.Tensor([0.8, 0.2])
+        tree_feature_map = partial(tree_mapping, **tree_feature_mapping_kwargs)
+        nn_feature_map = partial(small_nn, **nn_feature_mapping_kwargs)
+        self.functions = [nn_feature_map, cat_feature_map, tree_feature_map]
+        self.function_prob = torch.Tensor([0.6, 0.2, 0.2])
 
         self.available_mappings = [small_nn, cat_feature_map]
 
@@ -44,18 +50,11 @@ def __normalize():
 
 
 def __add_noise():
-    """Noise injection: at each edge, we add random normal noise from the
-    normal distribution N σ I(0, )2 ."""
-    pass
-
-
-def decision_tree():
-    """Decision trees: to incorporate structured, rule-based dependencies,
-    we implement decision trees in the SCMs. At certain edges, we select
-    a subset of features and apply decision boundaries on their values
-    to determine the output60
-    . The decision tree parameters (feature
-    splits, thresholds) are randomly sampled per edge."""
+    """
+    Noise injection: at each edge, we add random normal noise from the
+    normal distribution N σ I(0, )2 .
+    ::TODO Actually implement this and add to the forward mappings, but first need to think about how to do it best
+    """
     pass
 
 
@@ -106,6 +105,8 @@ def categorical_feature_mapping(
     # Initialize the prototype vectors and embeddings. For now only sampled from a standard normal distribution.
     # ::TODO Look into if these embeddings should be more diverse, other distributions, non-independence etc.
     # Also could it make sense to orthogonalize them?
+    # Also should definitely fix such that they look more like the latent variales,
+    # or maybe the normalization of variables will fix it anyway
     prototypes = torch.normal(0, 1, (n_categories, dim), generator=generator)
     embeddings = torch.normal(0, 1, (n_categories, dim), generator=generator)
 
@@ -167,51 +168,80 @@ class DecisionNode:
     threshold: float
     left_output: torch.Tensor | None = None
     right_output: torch.Tensor | None = None
-    left_child: Literal["DecisionNode"] | None = None
-    right_child: Literal["DecisionNode"] | None = None  # not sure type is correct
+    left_child: DecisionNode | None = None
+    right_child: DecisionNode | None = None
     is_leaf: bool = False
 
 
-class DecisionTreeEdgeMapping:
+def tree_mapping(latent_variables: torch.Tensor, generator: torch.Generator, max_depth: int) -> EdgeMappingOutput:
+    """_summary_
+
+    Parameters
+    ----------
+    latent_variables : torch.Tensor
+        _description_
+    generator : torch.Generator
+        _description_
+    max_depth : int
+        _description_
+
+    Returns
+    -------
+    EdgeMappingOutput
+        _description_
+    """
+    latent_dim = latent_variables.shape[1]
+    latent_med = torch.median(latent_variables, dim=0).values
+    latent_std = torch.std(latent_variables, dim=0)
+
+    dt = DecisionTreeMapping(
+        max_depth=max_depth, generator=generator, latent_dim=latent_dim, latent_med=latent_med, latend_std=latent_std
+    )
+    outputs = dt.forward(latent_variables)
+    outputs: EdgeMappingOutput = {"latent_variable": outputs}
+    return outputs
+
+
+class DecisionTreeMapping:
     def __init__(
         self,
-        latent_dim: int,
         max_depth: int,
-        min_samples_split: int,
-        generator: torch.Generator | None,
+        generator: torch.Generator,
+        latent_dim: int,
+        latent_med: int,
+        latend_std: int,
     ):
-        """
-        Initialize decision tree edge mapping.
+        """_summary_
 
-        Args:
-            latent_dim: Dimension of latent space vectors
-            max_depth: Maximum depth of the decision tree
-            min_samples_split: Minimum samples required to split a node
-            random_state: Random seed for reproducibility
+        Parameters
+        ----------
+        max_depth : int
+            _description_
+        generator : torch.Generator
+            _description_
         """
-        self.latent_dim = latent_dim
-        self.max_depth = max_depth
-        self.min_samples_split = min_samples_split
         self.generator = generator
-        self.root = None
+        self.latent_dim = latent_dim
+        self.latent_med = latent_med
+        self.latent_std = latend_std
+        self.max_depth = max_depth
         self.selected_features = None
+        self.root = None
 
     def _sample_tree_structure(self) -> None:
         """Sample the decision tree structure with random parameters."""
         # Select a random subset of features for splits
-        # ::TODO change to pytorch
-        n_features_to_use = torch.randint(1, self.latent_dim)
+        n_features_to_use = torch.randint(1, self.latent_dim, size=(1,), generator=self.generator)
         equal_probability_weigths = torch.ones(self.latent_dim)
         self.selected_features = torch.multinomial(
             equal_probability_weigths, n_features_to_use, replacement=False, generator=self.generator
         )
         self.root = self._build_random_tree(depth=0)
 
-    def _build_random_tree(self, depth: int) -> DecisionNode:
+    def _build_random_tree(self, depth: int, random_stop_threshold: float = 0.2) -> DecisionNode:
         """Recursively build a random decision tree."""
-        # Create leaf node if max depth reached or randomly decide to terminate
-        # ::TODO change to pytorch
-        if depth >= self.max_depth or (depth > 0 and self.rng.random() < 0.3):
+        randomly_stop = depth > 0 and torch.rand((1,), generator=self.generator) < random_stop_threshold
+        if depth >= self.max_depth or randomly_stop:
             return DecisionNode(
                 feature_idx=-1,  # Not used for leaf
                 threshold=0.0,  # Not used for leaf
@@ -219,69 +249,58 @@ class DecisionTreeEdgeMapping:
                 is_leaf=True,
             )
 
-        # Sample feature and threshold for split
-        feature_idx = self.rng.choice(self.selected_features)
-        # Sample threshold from a reasonable range
-        threshold = self.rng.normal(0, 1)  # Could be adapted based on expected input range
+        feature_idx = torch.randint(0, self.selected_features.shape[0], (1,), generator=self.generator).item()
+        feature_med = self.latent_med[self.selected_features[feature_idx]]
+        feature_std = self.latent_std[self.selected_features[feature_idx]]
+        threshold = torch.normal(feature_med, feature_std, size=(1,), generator=self.generator).item()
 
         node = DecisionNode(feature_idx=feature_idx, threshold=threshold, is_leaf=False)
-
-        # Recursively create children
         node.left_child = self._build_random_tree(depth + 1)
         node.right_child = self._build_random_tree(depth + 1)
 
         return node
 
-    def _sample_output_vector(self) -> np.ndarray:
+    def _sample_output_vector(self) -> torch.Tensor:
         """Sample a random output vector for leaf nodes."""
-        # Sample from various distributions to create diverse outputs
-        distribution_type = self.rng.choice(["normal", "uniform", "sparse"])
+        distribution_type = torch.randint(0, 2, (1,), generator=self.generator).item()
+        match distribution_type:
+            case 0:
+                return torch.normal(0, 1, size=(1, self.latent_dim), generator=self.generator)
+            case 1:
+                return torch.rand(size=(1, self.latent_dim), generator=self.generator) * 2 - 1
+            case _:
+                msg = "Invalid distribution type, fix the randint to be at most the number of choices in the match statement"
+                raise ValueError(msg)
 
-        if distribution_type == "normal":
-            return self.rng.normal(0, 1, self.output_dim)
-        elif distribution_type == "uniform":
-            return self.rng.uniform(-1, 1, self.output_dim)
-        else:  # sparse
-            output = np.zeros(self.output_dim)
-            n_nonzero = self.rng.randint(1, max(2, self.output_dim // 2))
-            nonzero_idx = self.rng.choice(self.output_dim, size=n_nonzero, replace=False)
-            output[nonzero_idx] = self.rng.normal(0, 1, n_nonzero)
-            return output
-
-    def _traverse_tree(self, latent_variables: np.ndarray, node: DecisionNode) -> np.ndarray:
+    def _traverse_tree(self, latent_variables: torch.Tensor, node: DecisionNode) -> torch.Tensor:
         """Traverse the decision tree to get output for input vector latent_variables."""
         if node.is_leaf:
-            return node.left_output.copy()
-
-        # Apply decision boundary
+            return node.left_output.clone()
         if latent_variables[node.feature_idx] <= node.threshold:
             return self._traverse_tree(latent_variables, node.left_child)
         else:
             return self._traverse_tree(latent_variables, node.right_child)
 
-    def forward(self, latent_variables: np.ndarray) -> np.ndarray:
-        """
-        Apply decision tree mapping to input vector(s).
+    def forward(self, latent_variables: torch.Tensor) -> torch.Tensor:
+        """_summary_
 
-        Args:
-            latent_variables: Input vector of shape (input_dim,) or batch (batch_size, input_dim)
+        Parameters
+        ----------
+        latent_variables : torch.Tensor
+            _description_
 
-        Returns:
-            Output vector(s) after applying decision tree mapping
+        Returns
+        -------
+        torch.Tensor
+            _description_
         """
-        # Initialize tree structure if not already done
         if self.root is None:
             self._sample_tree_structure()
 
-        # Handle single vector or batch
-        if latent_variables.ndim == 1:
-            return self._traverse_tree(latent_variables, self.root)
-        else:
-            # Batch processing
-            outputs = []
-            for i in range(latent_variables.shape[0]):
-                outputs.append(self._traverse_tree(latent_variables[i], self.root))
-            return np.array(outputs)
+        outputs = []
+        for i in range(latent_variables.shape[0]):
+            outputs.append(self._traverse_tree(latent_variables[i], self.root))
+        return torch.vstack(outputs)
 
 
 if __name__ == "__main__":
