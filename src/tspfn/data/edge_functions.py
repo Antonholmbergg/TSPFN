@@ -5,6 +5,9 @@ from functools import partial
 import numpy as np
 import torch
 from torch import nn
+from dataclasses import dataclass
+from tspfn.data.utils import gamma
+from scipy.spatial.distance import cdist
 
 logger = logging.getLogger()
 
@@ -85,25 +88,20 @@ def __sample_activation_function(torch_generator: torch.Generator) -> Callable:
 
 
 def small_nn(
-    latent_variable: torch.Tensor,
+    latent_variables: torch.Tensor,
     torch_generator: torch.Generator,
 ):
-    """we apply element-wise nonlinear activation func-
-    tions R Rσ : →d d , randomly sampled from a set, including identity,
-    logarithm, sigmoid, absolute value, sine, hyperbolic tangent, rank
-    operation, squaring, power functions, smooth ReLU 59
-    , step function
-    and modulo operation."""
+    """
+    ::TODO step function
+    and modulo operation as activation functions.
+    """
     output_function = __sample_activation_function(torch_generator)
-    _, columns = latent_variable.shape
+    _, columns = latent_variables.shape
     w = torch.empty(columns, columns)
     b = torch.empty(1, columns)
     nn.init.xavier_normal_(w, generator=torch_generator)
     nn.init.xavier_normal_(b, generator=torch_generator)
-    return output_function(latent_variable @ w.T + b)
-
-
-from dataclasses import dataclass
+    return output_function(latent_variables @ w.T + b)
 
 
 @dataclass
@@ -112,50 +110,46 @@ class DecisionNode:
 
     feature_idx: int
     threshold: float
-    left_output: np.ndarray | None = None
-    right_output: np.ndarray | None = None
+    left_output: torch.Tensor | None = None
+    right_output: torch.Tensor | None = None
     left_child: Literal["DecisionNode"] | None = None
-    right_child: Literal["DecisionNode"] | None = None
+    right_child: Literal["DecisionNode"] | None = None  # not sure type is correct
     is_leaf: bool = False
 
 
 class DecisionTreeEdgeMapping:
     def __init__(
         self,
-        input_dim: int,
-        output_dim: int,
-        max_depth: int = 3,
-        min_samples_split: int = 2,
-        random_state: int | None = None,
-        torch_generator: torch.Generator | None = None,
+        latent_dim: int,
+        max_depth: int,
+        min_samples_split: int,
+        torch_generator: torch.Generator | None,
     ):
         """
         Initialize decision tree edge mapping.
 
         Args:
-            input_dim: Dimension of input vectors
-            output_dim: Dimension of output vectors
+            latent_dim: Dimension of latent space vectors
             max_depth: Maximum depth of the decision tree
             min_samples_split: Minimum samples required to split a node
             random_state: Random seed for reproducibility
         """
-        self.input_dim = input_dim
-        self.output_dim = output_dim
+        self.latent_dim = latent_dim
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
-        self.rng = np.random.RandomState(random_state)
+        self.torch_generator = torch_generator
         self.root = None
         self.selected_features = None
-        self.torch_generator = torch_generator
 
     def _sample_tree_structure(self) -> None:
         """Sample the decision tree structure with random parameters."""
         # Select a random subset of features for splits
         # ::TODO change to pytorch
-        n_features_to_use = self.rng.randint(1, min(self.input_dim + 1, 6))  # Use 1-5 features
-        self.selected_features = self.rng.choice(self.input_dim, size=n_features_to_use, replace=False)
-
-        # Build tree with random splits and outputs
+        n_features_to_use = torch.randint(1, self.latent_dim)
+        equal_probability_weigths = torch.ones(self.latent_dim)
+        self.selected_features = torch.multinomial(
+            equal_probability_weigths, n_features_to_use, replacement=False, generator=self.torch_generator
+        )
         self.root = self._build_random_tree(depth=0)
 
     def _build_random_tree(self, depth: int) -> DecisionNode:
@@ -199,23 +193,23 @@ class DecisionTreeEdgeMapping:
             output[nonzero_idx] = self.rng.normal(0, 1, n_nonzero)
             return output
 
-    def _traverse_tree(self, x: np.ndarray, node: DecisionNode) -> np.ndarray:
-        """Traverse the decision tree to get output for input vector x."""
+    def _traverse_tree(self, latent_variables: np.ndarray, node: DecisionNode) -> np.ndarray:
+        """Traverse the decision tree to get output for input vector latent_variables."""
         if node.is_leaf:
             return node.left_output.copy()
 
         # Apply decision boundary
-        if x[node.feature_idx] <= node.threshold:
-            return self._traverse_tree(x, node.left_child)
+        if latent_variables[node.feature_idx] <= node.threshold:
+            return self._traverse_tree(latent_variables, node.left_child)
         else:
-            return self._traverse_tree(x, node.right_child)
+            return self._traverse_tree(latent_variables, node.right_child)
 
-    def forward(self, x: np.ndarray) -> np.ndarray:
+    def forward(self, latent_variables: np.ndarray) -> np.ndarray:
         """
         Apply decision tree mapping to input vector(s).
 
         Args:
-            x: Input vector of shape (input_dim,) or batch (batch_size, input_dim)
+            latent_variables: Input vector of shape (input_dim,) or batch (batch_size, input_dim)
 
         Returns:
             Output vector(s) after applying decision tree mapping
@@ -225,15 +219,76 @@ class DecisionTreeEdgeMapping:
             self._sample_tree_structure()
 
         # Handle single vector or batch
-        if x.ndim == 1:
-            return self._traverse_tree(x, self.root)
+        if latent_variables.ndim == 1:
+            return self._traverse_tree(latent_variables, self.root)
         else:
             # Batch processing
             outputs = []
-            for i in range(x.shape[0]):
-                outputs.append(self._traverse_tree(x[i], self.root))
+            for i in range(latent_variables.shape[0]):
+                outputs.append(self._traverse_tree(latent_variables[i], self.root))
             return np.array(outputs)
 
 
+def categorical_feature_mapping(
+    latent_variables: torch.Tensor,
+    gamma_shape: float = 2.0,
+    gamma_rate: float = 1.0,
+    min_categories: int = 2,
+    max_categories: int = 20,
+    generator: torch.Generator | None = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Apply categorical feature discretization mapping as an edge mapping in the SCM.
+
+        Process:
+        1. Find nearest prototype vector for each input
+        2. Map to categorical index
+        3. Embed categorical index back to continuous space
+
+    Parameters
+    ----------
+    latent_variables : torch.Tensor
+        _description_
+    gamma_shape : float, optional
+        _description_, by default 2.0
+    gamma_rate : float, optional
+        _description_, by default 1.0
+    min_categories : int, optional
+        _description_, by default 2
+    max_categories : int, optional
+        _description_, by default 20
+    generator : torch.Generator | None, optional
+        _description_, by default None
+
+    Returns
+    -------
+    tuple[torch.Tensor, torch.Tensor]
+        _description_
+    """
+    dim = latent_variables.shape[1]
+    gamma_shape = torch.Tensor([gamma_shape])
+    gamma_rate = torch.Tensor([gamma_rate])
+
+    gamma_sample = gamma(gamma_shape, gamma_rate, (1,), generator)
+    n_categories = max(
+        min_categories, min(max_categories, int(torch.round(gamma_sample, decimals=0).item()) + min_categories)
+    )
+    # Initialize the prototype vectors and embeddings. For now only sampled from a standard normal distribution.
+    # ::TODO Look into if these embeddings should be more diverse, other distributions, non-independence etc.
+    # Also could it make sense to orthogonalize them?
+    prototypes = torch.normal(0, 1, (n_categories, dim), generator=generator)
+    embeddings = torch.normal(0, 1, (n_categories, dim), generator=generator)
+
+    distances = torch.hstack(
+        [torch.unsqueeze(torch.sum(torch.square(latent_variables - torch.unsqueeze(prototypes[i, :], dim=0)), dim=1), dim=1) for i in range(prototypes.shape[0])],
+    )
+    category_indicies = torch.argmin(distances, dim=-1)
+    output_embeddings = embeddings[category_indicies]
+    return output_embeddings, category_indicies.reshape(-1, 1)
+
+
 if __name__ == "__main__":
-    pass
+    generator = torch.Generator().manual_seed(33485289)
+    latent_variables = torch.normal(1, 4, size=(100, 6), generator=generator)
+    cont_features, category = categorical_feature_mapping(latent_variables, generator=generator)
+    print(latent_variables, cont_features, category)
+    print(latent_variables.shape, cont_features.shape, category.shape)
