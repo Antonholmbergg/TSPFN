@@ -61,10 +61,6 @@ if __name__ == "__main__":
     print(prior_conf)
     prior_hp = PriorHyperParameters(conf=prior_conf)
     print(prior_hp)
-    from tspfn.data.edge_functions import nn_edge
-
-    model = nn_edge(prior_hp)
-    print(model)
 
     # s = 1
     # x = np.linspace(lognorm.ppf(0.01, s, loc=15, scale=10),

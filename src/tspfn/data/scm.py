@@ -1,7 +1,6 @@
 from typing import Literal
 
 import networkx as nx
-import polars as pl
 import torch
 
 from tspfn.data.edge_functions import (
@@ -34,10 +33,12 @@ class SCM:
         node_dim: int,
         edge_normalization_dim: Literal[0, 1] | None,
         edge_noise_std: float,
+        n_draws_feature_mapping: int,
     ):
         self.generator = torch.Generator().manual_seed(random_state)
         self.edge_normalization_dim = edge_normalization_dim
         self.edge_noise_std = edge_noise_std
+        self.n_draws_feature_mapping = n_draws_feature_mapping
         self.n_sample_rows = n_sample_rows
         self.node_dim = node_dim
         self.graph = nx.gnr_graph(
@@ -102,7 +103,10 @@ class SCM:
             mapping_output: EdgeMappingOutput = mapping["function"](
                 self.graph.nodes[node]["latent_variables"], generator=self.generator
             )
-            latent_variables = mapping_output.get("latent_variable")
+            latent_variables = mapping_output["latent_variable"]
+            print(node)
+            print(latent_variables.max())
+            print(latent_variables.min())
             latent_variables = normalize(latent_variables, generator=self.generator, dim=self.edge_normalization_dim)
             latent_variables = add_noise(latent_variables, noise_std=self.edge_noise_std, generator=self.generator)
             cat_feature = mapping_output.get("categorical_feature")
@@ -123,23 +127,24 @@ class SCM:
             for node in generation:
                 self.__map_edges_from_node(node)
 
-    def get_dataset(self, n_draws_feature_mapping: int = 10) -> pl.DataFrame:
+    def get_dataset(self) -> tuple[torch.Tensor, torch.Tensor]:
         self.__initialize_root_nodes()
         self.__proppagate()
-        dataset = {}
+        continuous_data = []
+        categorical_data = []
         for node in self.feature_nodes:
             continuos_feature_mapping = torch.zeros(self.node_dim)
             for ind in torch.multinomial(
-                torch.ones(self.node_dim), n_draws_feature_mapping, replacement=True, generator=self.generator
+                torch.ones(self.node_dim), self.n_draws_feature_mapping, replacement=True, generator=self.generator
             ):
-                continuos_feature_mapping[ind] += 1 / n_draws_feature_mapping
+                continuos_feature_mapping[ind] += 1 / self.n_draws_feature_mapping
             categorical_feature = self.graph.nodes[node]["categorical_feature"]
             if categorical_feature is not None:
-                dataset[f"cat_feature_{int(node)}"] = categorical_feature
+                categorical_data.append(categorical_feature.reshape(-1, 1))
             else:
                 continuos_feature = torch.matmul(self.graph.nodes[node]["latent_variables"], continuos_feature_mapping)
-                dataset[f"feature_{int(node)}"] = continuos_feature
-        return pl.DataFrame(dataset)
+                continuous_data.append(continuos_feature.reshape(-1, 1))
+        return torch.hstack(continuous_data), torch.hstack(categorical_data)
 
 
 def get_scm(prior_hp: PriorHyperParameters) -> SCM:
@@ -177,8 +182,9 @@ def get_scm(prior_hp: PriorHyperParameters) -> SCM:
         efs,
         1000,
         12,
-        edge_normalization_dim=None,
+        edge_normalization_dim=0,
         edge_noise_std=0.05,
+        n_draws_feature_mapping=10,
     )
 
 
@@ -197,7 +203,6 @@ if __name__ == "__main__":
         with_labels=True,
         node_color="lightblue",
         edge_color="gray",
-        arrows=True,
         arrowsize=10,
         node_size=700,
     )

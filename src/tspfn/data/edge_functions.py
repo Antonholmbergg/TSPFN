@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Literal, NotRequired, Required, TypedDict
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from typing import Any, NotRequired, Required, TypedDict, cast
 
 import torch
 from torch import nn
@@ -23,7 +21,7 @@ class EdgeMappingOutput(TypedDict):
 
 class EdgeFunctionConfig(TypedDict):
     function: Callable
-    kwargs: dict[str, any]
+    kwargs: dict[str, Any]
     weight: float
 
 
@@ -35,8 +33,8 @@ class EdgeFunctionSampler:
     ) -> None:
         logger.warning("This constructor is only mostly implemented")
         self.generator = torch.Generator().manual_seed(random_state)
-        self.functions = []
-        weights = []
+        self.functions: list[Callable] = []
+        weights: list[float] = []
         for config in function_configs:
             partial_func = partial(config["function"], **config["kwargs"])
             self.functions.append(partial_func)
@@ -44,26 +42,30 @@ class EdgeFunctionSampler:
         self.weights = torch.Tensor(weights)
 
     def sample(self) -> Callable:
-        function_index = torch.multinomial(self.weights, 1, replacement=False, generator=self.generator).item()
+        function_index = int(torch.multinomial(self.weights, 1, replacement=False, generator=self.generator).item())
         return self.functions[function_index]
 
 
-def normalize(latent_variables: torch.Tensor, generator: torch.Generator, dim: Literal[0, 1] | None = None):
-    ndims = len(latent_variables.shape)
+def normalize(latent_variables: torch.Tensor, generator: torch.Generator, dim: int | None = None):
     norm_options = ["minmax", "z-score"]
-    norm_option = torch.randint(
-        0,
-        len(norm_options),
-        size=(1,),
-        generator=generator,
-    ).item()
-    if dim is None:
-        dim = torch.randint(
+    norm_option = int(
+        torch.randint(
             0,
-            ndims,
+            len(norm_options),
             size=(1,),
             generator=generator,
         ).item()
+    )
+    ndims = len(latent_variables.shape)
+    if dim is None:
+        dim = int(
+            torch.randint(
+                0,
+                ndims,
+                size=(1,),
+                generator=generator,
+            ).item()
+        )
     match norm_options[norm_option]:
         case "minmax":
             dim_max = torch.max(latent_variables, dim=dim, keepdim=True).values
@@ -125,10 +127,10 @@ def categorical_feature_mapping(
         _description_
     """
     dim = latent_variables.shape[1]
-    gamma_shape = torch.Tensor([gamma_shape])
-    gamma_rate = torch.Tensor([gamma_rate])
+    gamma_shape_tensor = torch.Tensor([gamma_shape])
+    gamma_rate_tensor = torch.Tensor([gamma_rate])
 
-    gamma_sample = gamma(gamma_shape, gamma_rate, (1,), generator)
+    gamma_sample = gamma(gamma_shape_tensor, gamma_rate_tensor, (1,), generator)
     n_categories = max(
         min_categories, min(max_categories, int(torch.round(gamma_sample, decimals=0).item()) + min_categories)
     )
@@ -172,7 +174,7 @@ def __sample_activation_function(generator: torch.Generator) -> Callable:
         __float_argsort,
     ]
     choice = torch.randint(0, len(abailable_activation_functions), (1,), generator=generator)
-    return abailable_activation_functions[choice.item()]
+    return cast(Callable[..., Any], abailable_activation_functions[int(choice.item())])
 
 
 def small_nn(
@@ -200,8 +202,7 @@ class DecisionNode:
 
     feature_idx: int
     threshold: float
-    left_output: torch.Tensor | None = None
-    right_output: torch.Tensor | None = None
+    output: torch.Tensor | None = None
     left_child: DecisionNode | None = None
     right_child: DecisionNode | None = None
     is_leaf: bool = False
@@ -224,15 +225,14 @@ def tree_mapping(latent_variables: torch.Tensor, generator: torch.Generator, max
     EdgeMappingOutput
         _description_
     """
-    latent_dim = latent_variables.shape[1]
+    latent_dim = int(latent_variables.shape[1])
     latent_med = torch.median(latent_variables, dim=0).values
     latent_std = torch.std(latent_variables, dim=0)
 
     dt = DecisionTreeMapping(
         max_depth=max_depth, generator=generator, latent_dim=latent_dim, latent_med=latent_med, latend_std=latent_std
     )
-    outputs = dt.forward(latent_variables)
-    outputs: EdgeMappingOutput = {"latent_variable": outputs}
+    outputs: EdgeMappingOutput = {"latent_variable": dt.forward(latent_variables)}
     return outputs
 
 
@@ -242,8 +242,8 @@ class DecisionTreeMapping:
         max_depth: int,
         generator: torch.Generator,
         latent_dim: int,
-        latent_med: int,
-        latend_std: int,
+        latent_med: torch.Tensor,
+        latend_std: torch.Tensor,
     ):
         """_summary_
 
@@ -259,18 +259,16 @@ class DecisionTreeMapping:
         self.latent_med = latent_med
         self.latent_std = latend_std
         self.max_depth = max_depth
-        self.selected_features = None
-        self.root = None
+        self._sample_tree_structure()
+        self.root = self._build_random_tree(depth=0)
 
     def _sample_tree_structure(self) -> None:
         """Sample the decision tree structure with random parameters."""
-        # Select a random subset of features for splits
-        n_features_to_use = torch.randint(1, self.latent_dim, size=(1,), generator=self.generator)
+        n_features_to_use = int(torch.randint(1, self.latent_dim, size=(1,), generator=self.generator).item())
         equal_probability_weigths = torch.ones(self.latent_dim)
         self.selected_features = torch.multinomial(
             equal_probability_weigths, n_features_to_use, replacement=False, generator=self.generator
         )
-        self.root = self._build_random_tree(depth=0)
 
     def _build_random_tree(self, depth: int, random_stop_threshold: float = 0.2) -> DecisionNode:
         """Recursively build a random decision tree."""
@@ -279,14 +277,14 @@ class DecisionTreeMapping:
             return DecisionNode(
                 feature_idx=-1,  # Not used for leaf
                 threshold=0.0,  # Not used for leaf
-                left_output=self._sample_output_vector(),
+                output=self._sample_output_vector(),
                 is_leaf=True,
             )
 
-        feature_idx = torch.randint(0, self.selected_features.shape[0], (1,), generator=self.generator).item()
+        feature_idx = int(torch.randint(0, self.selected_features.shape[0], (1,), generator=self.generator).item())
         feature_med = self.latent_med[self.selected_features[feature_idx]]
         feature_std = self.latent_std[self.selected_features[feature_idx]]
-        threshold = torch.normal(feature_med, feature_std, size=(1,), generator=self.generator).item()
+        threshold = float(torch.normal(feature_med, feature_std, generator=self.generator).item())
 
         node = DecisionNode(feature_idx=feature_idx, threshold=threshold, is_leaf=False)
         node.left_child = self._build_random_tree(depth + 1)
@@ -308,8 +306,11 @@ class DecisionTreeMapping:
 
     def _traverse_tree(self, latent_variables: torch.Tensor, node: DecisionNode) -> torch.Tensor:
         """Traverse the decision tree to get output for input vector latent_variables."""
-        if node.is_leaf:
-            return node.left_output.clone()
+        if node.is_leaf and node.output is not None:
+            return node.output.clone()
+        if node.left_child is None or node.right_child is None:
+            msg = "One of the child nodes is None despite the node not being a leaf node."
+            raise RuntimeError(msg)
         if latent_variables[node.feature_idx] <= node.threshold:
             return self._traverse_tree(latent_variables, node.left_child)
         return self._traverse_tree(latent_variables, node.right_child)
@@ -327,12 +328,7 @@ class DecisionTreeMapping:
         torch.Tensor
             _description_
         """
-        if self.root is None:
-            self._sample_tree_structure()
 
-        # outputs = []
-        # for i in range(latent_variables.shape[0]):
-        # outputs.append(self._traverse_tree(latent_variables[i], self.root))
         outputs = [self._traverse_tree(latent_variables[i], self.root) for i in range(latent_variables.shape[0])]
         return torch.vstack(outputs)
 

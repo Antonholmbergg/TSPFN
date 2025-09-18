@@ -58,6 +58,9 @@ dev = [
 
 [tool.mypy]
 python_version = 3.13
+install_types=true
+non_interactive=true
+check_untyped_defs=true
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
