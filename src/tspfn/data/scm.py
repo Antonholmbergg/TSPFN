@@ -1,8 +1,19 @@
+from typing import Literal
+
 import networkx as nx
 import polars as pl
 import torch
 
-from tspfn.data.edge_functions import EdgeFunctionSampler, EdgeMappingOutput
+from tspfn.data.edge_functions import (
+    EdgeFunctionConfig,
+    EdgeFunctionSampler,
+    EdgeMappingOutput,
+    add_noise,
+    categorical_feature_mapping,
+    normalize,
+    small_nn,
+    tree_mapping,
+)
 from tspfn.data.prior import PriorHyperParameters
 
 
@@ -19,11 +30,15 @@ class SCM:
         random_state: int,
         feature_node_fraction: float,
         edge_function_sampler: EdgeFunctionSampler,
-        n_rows: int,
+        n_sample_rows: int,
         node_dim: int,
+        edge_normalization_dim: Literal[0, 1] | None,
+        edge_noise_std: float,
     ):
         self.generator = torch.Generator().manual_seed(random_state)
-        self.n_rows = n_rows
+        self.edge_normalization_dim = edge_normalization_dim
+        self.edge_noise_std = edge_noise_std
+        self.n_sample_rows = n_sample_rows
         self.node_dim = node_dim
         self.graph = nx.gnr_graph(
             n=n_nodes_total,
@@ -55,7 +70,7 @@ class SCM:
         for node in self.graph.nodes:
             node_attributes[node] = {
                 "feature_node": node in self.feature_nodes,
-                "latent_variables": torch.zeros((self.n_rows, self.node_dim)),
+                "latent_variables": torch.zeros((self.n_sample_rows, self.node_dim)),
                 "categorical_feature": None,
             }
         nx.set_node_attributes(self.graph, node_attributes)
@@ -76,31 +91,37 @@ class SCM:
     def __initialize_root_nodes(self) -> None:
         for root_node in self.root_nodes:
             self.graph.nodes[root_node]["latent_variables"] += torch.normal(
-                0, 1, size=(self.n_rows, self.node_dim), generator=self.generator
+                0, 1, size=(self.n_sample_rows, self.node_dim), generator=self.generator
             )
+
+    def __map_edges_from_node(self, node: int) -> None:
+        edge_mappings = self.graph[node]
+        # This should actally always have one and only one value
+        # unless I start mergin different graphs to form the SCM.
+        for successor_node, mapping in edge_mappings.items():
+            mapping_output: EdgeMappingOutput = mapping["function"](
+                self.graph.nodes[node]["latent_variables"], generator=self.generator
+            )
+            latent_variables = mapping_output.get("latent_variable")
+            latent_variables = normalize(latent_variables, generator=self.generator, dim=self.edge_normalization_dim)
+            latent_variables = add_noise(latent_variables, noise_std=self.edge_noise_std, generator=self.generator)
+            cat_feature = mapping_output.get("categorical_feature")
+            self.graph.nodes[successor_node]["latent_variables"] += latent_variables
+            if cat_feature is not None:
+                if self.graph.nodes[successor_node]["categorical_feature"] is None:
+                    self.graph.nodes[successor_node]["categorical_feature"] = cat_feature
+                else:
+                    # This is questionable but I'm not sure what to do in this situation yet.
+                    # ignore it? concatenate it?
+                    # Add it (thats what I do to the embeddigns that represent the catagories too)?
+                    self.graph.nodes[successor_node]["categorical_feature"] += cat_feature
 
     def __proppagate(
         self,
     ) -> None:
         for generation in nx.topological_generations(self.graph):
             for node in generation:
-                edge_mappings = self.graph[node]
-                # This should actally always have one and only one value except for node 0
-                for successor_node, mapping in edge_mappings.items():
-                    mapping_output: EdgeMappingOutput = mapping["function"](
-                        self.graph.nodes[node]["latent_variables"], generator=self.generator
-                    )
-                    latent_variables = mapping_output.get("latent_variable")
-                    cat_feature = mapping_output.get("categorical_feature")
-                    self.graph.nodes[successor_node]["latent_variables"] += latent_variables
-                    if cat_feature is not None:
-                        if self.graph.nodes[successor_node]["categorical_feature"] is None:
-                            self.graph.nodes[successor_node]["categorical_feature"] = cat_feature
-                        else:
-                            # This is questionable but I'm not sure what to do in this situation yet.
-                            # ignore it? concatenate it?
-                            # Add it (thats what I do to the embeddigns that represent the catagories too)?
-                            self.graph.nodes[successor_node]["categorical_feature"] += cat_feature
+                self.__map_edges_from_node(node)
 
     def get_dataset(self, n_draws_feature_mapping: int = 10) -> pl.DataFrame:
         self.__initialize_root_nodes()
@@ -122,36 +143,47 @@ class SCM:
 
 
 def get_scm(prior_hp: PriorHyperParameters) -> SCM:
-    generator = torch.Generator().manual_seed(84395)
-    categorical_feature_mapping_kwargs = {
-        "gamma_shape": 2.0,
-        "gamma_rate": 1.0,
-        "min_categories": 2,
-        "max_categories": 20,
-    }
-    tree_feature_mapping_kwargs = {
-        "max_depth": 6,
-    }
-    nn_feature_mapping_kwargs = {}
-    efs = EdgeFunctionSampler(
-        generator, categorical_feature_mapping_kwargs, tree_feature_mapping_kwargs, nn_feature_mapping_kwargs
-    )
+    random_state = 84395
+    function_configs: list[EdgeFunctionConfig] = [
+        {
+            "function": small_nn,
+            "kwargs": {},
+            "weight": 3.0,
+        },
+        {
+            "function": categorical_feature_mapping,
+            "kwargs": {
+                "gamma_shape": 2.0,
+                "gamma_rate": 1.0,
+                "min_categories": 2,
+                "max_categories": 20,
+            },
+            "weight": 1,
+        },
+        {
+            "function": tree_mapping,
+            "kwargs": {
+                "max_depth": 6,
+            },
+            "weight": 1,
+        },
+    ]
+    efs = EdgeFunctionSampler(random_state, function_configs)
     return SCM(
         45,
         0.1,
         42,
         0.3,
         efs,
-        100,
-        8,
+        1000,
+        12,
+        edge_normalization_dim=None,
+        edge_noise_std=0.05,
     )
 
 
 if __name__ == "__main__":
     gnr_graph = get_scm(1)
-    # rng = np.random.default_rng(101)
-    n_rows = 100
-    node_dim = 8
     dataset = gnr_graph.get_dataset()
     print(dataset)
 

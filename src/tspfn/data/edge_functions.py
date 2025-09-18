@@ -15,71 +15,63 @@ from tspfn.data.utils import gamma
 
 logger = logging.getLogger()
 
-non_linearity_mapping = {
-    "relu": nn.ReLU(),
-}
-
 
 class EdgeMappingOutput(TypedDict):
     latent_variable: Required[torch.Tensor]
     categorical_feature: NotRequired[torch.Tensor]
 
 
+class EdgeFunctionConfig(TypedDict):
+    function: Callable
+    kwargs: dict[str, any]
+    weight: float
+
+
 class EdgeFunctionSampler:
     def __init__(
         self,
-        generator: torch.Generator,
-        categorical_feature_mapping_kwargs: dict[str, float | int],
-        tree_feature_mapping_kwargs: dict[str, float | int],
-        nn_feature_mapping_kwargs: dict[str, float | int],
+        random_state: int,
+        function_configs: list[EdgeFunctionConfig],
     ) -> None:
         logger.warning("This constructor is only mostly implemented")
-        self.generator = generator
-        cat_feature_map = partial(categorical_feature_mapping, **categorical_feature_mapping_kwargs)
-        tree_feature_map = partial(tree_mapping, **tree_feature_mapping_kwargs)
-        nn_feature_map = partial(small_nn, **nn_feature_mapping_kwargs)
-        self.functions = [nn_feature_map, cat_feature_map, tree_feature_map]
-        self.function_prob = torch.Tensor([0.6, 0.2, 0.2])
-
-        self.available_mappings = [small_nn, cat_feature_map]
+        self.generator = torch.Generator().manual_seed(random_state)
+        self.functions = []
+        weights = []
+        for config in function_configs:
+            partial_func = partial(config["function"], **config["kwargs"])
+            self.functions.append(partial_func)
+            weights.append(config["weight"])
+        self.weights = torch.Tensor(weights)
 
     def sample(self) -> Callable:
-        function_index = torch.multinomial(self.function_prob, 1, replacement=False, generator=self.generator)
+        function_index = torch.multinomial(self.weights, 1, replacement=False, generator=self.generator).item()
         return self.functions[function_index]
 
 
-def __normalize(latent_variables: torch.Tensor, generator: torch.Generator, dim: Literal[0, 1] | None = None):
+def normalize(latent_variables: torch.Tensor, generator: torch.Generator, dim: Literal[0, 1] | None = None):
     ndims = len(latent_variables.shape)
     norm_options = ["minmax", "z-score"]
-    norm_option = (
-        torch.randint(
+    norm_option = torch.randint(
+        0,
+        len(norm_options),
+        size=(1,),
+        generator=generator,
+    ).item()
+    if dim is None:
+        dim = torch.randint(
             0,
-            len(norm_options),
+            ndims,
             size=(1,),
             generator=generator,
-        )
-        .detatch()
-        .item()
-    )
-    if dim is None:
-        dim = (
-            torch.randint(
-                0,
-                ndims,
-                size=(1,),
-                generator=generator,
-            )
-            .detatch()
-            .item()
-        )
-    match norm_option:
+        ).item()
+    match norm_options[norm_option]:
         case "minmax":
-            dim_max = torch.max(latent_variables, dim=dim)
-            dim_min = torch.min(latent_variables, dim=dim)
+            dim_max = torch.max(latent_variables, dim=dim, keepdim=True).values
+            dim_min = torch.min(latent_variables, dim=dim, keepdim=True).values
             normalized_latent_variables = (latent_variables - dim_min) / (dim_max - dim_min)
         case "z-score":
-            dim_mean = torch.mean(latent_variables, dim=dim)
-            dim_std = torch.std(latent_variables, dim=dim)
+            dim_mean = torch.mean(latent_variables, dim=dim, keepdim=True)
+            dim_std = torch.std(latent_variables, dim=dim, keepdim=True)
             normalized_latent_variables = (latent_variables - dim_mean) / dim_std
         case _:
             msg = f"method {norm_option} is not implemnted"
@@ -87,7 +79,7 @@ def __normalize(latent_variables: torch.Tensor, generator: torch.Generator, dim:
     return normalized_latent_variables
 
 
-def __add_noise(
+def add_noise(
     latent_variables: torch.Tensor,
     noise_std: float,
     generator: torch.Generator,
@@ -156,10 +148,14 @@ def categorical_feature_mapping(
             for i in range(prototypes.shape[0])
         ],
     )
-    category_indicies = torch.argmin(distances, dim=-1)
+    category_indicies = torch.argmin(distances, dim=-1).to(torch.int32)
     output_embeddings = embeddings[category_indicies]
     output: EdgeMappingOutput = {"latent_variable": output_embeddings, "categorical_feature": category_indicies}
     return output
+
+
+def __float_argsort(latent_variables: torch.Tensor):
+    return torch.argsort(latent_variables, dim=0).to(torch.float32)
 
 
 def __sample_activation_function(generator: torch.Generator) -> Callable:
@@ -173,7 +169,7 @@ def __sample_activation_function(generator: torch.Generator) -> Callable:
         torch.square,
         torch.exp,
         partial(torch.pow, 2),
-        partial(torch.argsort, dim=0),
+        __float_argsort,
     ]
     choice = torch.randint(0, len(abailable_activation_functions), (1,), generator=generator)
     return abailable_activation_functions[choice.item()]
