@@ -1,13 +1,16 @@
 from __future__ import annotations
-import logging
-from collections.abc import Callable
-from typing import Literal, TypedDict, Required, NotRequired
 
+import logging
+from dataclasses import dataclass
 from functools import partial
-import numpy as np
+from typing import TYPE_CHECKING, Literal, NotRequired, Required, TypedDict
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 import torch
 from torch import nn
-from dataclasses import dataclass
+
 from tspfn.data.utils import gamma
 
 logger = logging.getLogger()
@@ -45,17 +48,52 @@ class EdgeFunctionSampler:
         return self.functions[function_index]
 
 
-def __normalize():
-    pass
+def __normalize(latent_variables: torch.Tensor, generator: torch.Generator, dim: Literal[0, 1] | None = None):
+    ndims = len(latent_variables.shape)
+    norm_options = ["minmax", "z-score"]
+    norm_option = (
+        torch.randint(
+            0,
+            len(norm_options),
+            size=(1,),
+            generator=generator,
+        )
+        .detatch()
+        .item()
+    )
+    if dim is None:
+        dim = (
+            torch.randint(
+                0,
+                ndims,
+                size=(1,),
+                generator=generator,
+            )
+            .detatch()
+            .item()
+        )
+    match norm_option:
+        case "minmax":
+            dim_max = torch.max(latent_variables, dim=dim)
+            dim_min = torch.min(latent_variables, dim=dim)
+            normalized_latent_variables = (latent_variables - dim_min) / (dim_max - dim_min)
+        case "z-score":
+            dim_mean = torch.mean(latent_variables, dim=dim)
+            dim_std = torch.std(latent_variables, dim=dim)
+            normalized_latent_variables = (latent_variables - dim_mean) / dim_std
+        case _:
+            msg = f"method {norm_option} is not implemnted"
+            raise NotImplementedError(msg)
+    return normalized_latent_variables
 
 
-def __add_noise():
-    """
-    Noise injection: at each edge, we add random normal noise from the
-    normal distribution N σ I(0, )2 .
-    ::TODO Actually implement this and add to the forward mappings, but first need to think about how to do it best
-    """
-    pass
+def __add_noise(
+    latent_variables: torch.Tensor,
+    noise_std: float,
+    generator: torch.Generator,
+):
+    noise = torch.normal(0, noise_std, size=latent_variables.shape, generator=generator)
+    return latent_variables + noise
 
 
 def categorical_feature_mapping(
@@ -278,8 +316,7 @@ class DecisionTreeMapping:
             return node.left_output.clone()
         if latent_variables[node.feature_idx] <= node.threshold:
             return self._traverse_tree(latent_variables, node.left_child)
-        else:
-            return self._traverse_tree(latent_variables, node.right_child)
+        return self._traverse_tree(latent_variables, node.right_child)
 
     def forward(self, latent_variables: torch.Tensor) -> torch.Tensor:
         """_summary_
@@ -297,9 +334,10 @@ class DecisionTreeMapping:
         if self.root is None:
             self._sample_tree_structure()
 
-        outputs = []
-        for i in range(latent_variables.shape[0]):
-            outputs.append(self._traverse_tree(latent_variables[i], self.root))
+        # outputs = []
+        # for i in range(latent_variables.shape[0]):
+        # outputs.append(self._traverse_tree(latent_variables[i], self.root))
+        outputs = [self._traverse_tree(latent_variables[i], self.root) for i in range(latent_variables.shape[0])]
         return torch.vstack(outputs)
 
 
