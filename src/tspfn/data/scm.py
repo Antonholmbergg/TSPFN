@@ -100,15 +100,18 @@ class SCM:
         # This should actally always have one and only one value
         # unless I start mergin different graphs to form the SCM.
         for successor_node, mapping in edge_mappings.items():
+            latent_variables_current_node = self.graph.nodes[node]["latent_variables"]
+            latent_variables_current_node = normalize(
+                latent_variables_current_node, generator=self.generator, dim=self.edge_normalization_dim
+            )
+            latent_variables_current_node = add_noise(
+                latent_variables_current_node, noise_std=self.edge_noise_std, generator=self.generator
+            )
             mapping_output: EdgeMappingOutput = mapping["function"](
-                self.graph.nodes[node]["latent_variables"], generator=self.generator
+                latent_variables_current_node, generator=self.generator
             )
             latent_variables = mapping_output["latent_variable"]
-            print(node)
-            print(latent_variables.max())
-            print(latent_variables.min())
-            latent_variables = normalize(latent_variables, generator=self.generator, dim=self.edge_normalization_dim)
-            latent_variables = add_noise(latent_variables, noise_std=self.edge_noise_std, generator=self.generator)
+
             cat_feature = mapping_output.get("categorical_feature")
             self.graph.nodes[successor_node]["latent_variables"] += latent_variables
             if cat_feature is not None:
