@@ -100,7 +100,7 @@ class SCM:
         # This should actally always have one and only one value
         # unless I start mergin different graphs to form the SCM.
         for successor_node, mapping in edge_mappings.items():
-            latent_variables_current_node = self.graph.nodes[node]["latent_variables"]
+            latent_variables_current_node = self.graph.nodes[node]["latent_variables"].clone()
             latent_variables_current_node = normalize(
                 latent_variables_current_node, generator=self.generator, dim=self.edge_normalization_dim
             )
