@@ -1,6 +1,8 @@
-import torch
-from typing import TypedDict, Callable, Any
+from collections.abc import Callable
 from functools import partial
+from typing import Any, TypedDict
+
+import torch
 
 
 class NoiseFunctionConfig(TypedDict):
@@ -14,8 +16,7 @@ def generate_coloured_noise(
 ) -> torch.tensor:
     slope = torch.rand(1, generator=generator) * (slope_max - slope_min) + slope_min
     white_noise = torch.randn(size=(nrows, ncols), generator=generator)
-    coloured_noise = dye_noise(white_noise, slope=slope)
-    return coloured_noise
+    return dye_noise(white_noise, slope=slope)
 
 
 def dye_noise(noise: torch.Tensor, slope: float) -> torch.Tensor:
@@ -34,8 +35,7 @@ def generate_dynamic_noise(
     coloured_noise = generate_coloured_noise(nrows, ncols, generator=generator, slope_max=slope_max)
     dynamic_noise = torch.normal(dyn_noise_mean, torch.abs(coloured_noise), generator=generator)
     slope = torch.rand(1, generator=generator) * slope_max
-    coloured_noise = dye_noise(dynamic_noise, slope=slope)
-    return coloured_noise
+    return dye_noise(dynamic_noise, slope=slope)
 
 
 def get_input_noise_function(
