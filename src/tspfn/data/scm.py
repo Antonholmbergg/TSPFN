@@ -11,6 +11,7 @@ from tspfn.data.edge_functions import (
     small_nn,
     tree_mapping,
 )
+from tspfn.data.input_noise import generate_coloured_noise, generate_dynamic_noise, generate_white_noise
 from tspfn.data.prior import PriorHyperParameters
 from tspfn.data.utils import FunctionSampler, FunctionSamplingConfig
 
@@ -28,6 +29,7 @@ class SCM:
         random_state: int,
         feature_node_fraction: float,
         edge_function_sampler: FunctionSampler,
+        noise_function_sampler: FunctionSampler,
         n_sample_rows: int,
         node_dim: int,
         edge_normalization_dim: Literal[0, 1] | None,
@@ -46,7 +48,8 @@ class SCM:
             seed=random_state,
         )
         self.root_nodes = [v for v, d in self.graph.in_degree() if d == 0]
-        self.efs = edge_function_sampler
+        self.edge_function_sampler = edge_function_sampler
+        self.noise_function_sampler = noise_function_sampler
         self.feature_node_fraction = feature_node_fraction
         self.__populate_edge_functions()
         self.__set_node_features()
@@ -85,19 +88,19 @@ class SCM:
 
         edge_attributes = {}
         for edge in self.graph.edges:
-            edge_attributes[edge] = {"function": self.efs.sample()}
+            edge_attributes[edge] = {"function": self.edge_function_sampler.sample(self.generator)}
         nx.set_edge_attributes(self.graph, edge_attributes)
 
     def __initialize_root_nodes(self) -> None:
         for root_node in self.root_nodes:
-            self.graph.nodes[root_node]["latent_variables"] += torch.normal(
-                0, 1, size=(self.n_sample_rows, self.node_dim), generator=self.generator
-            )
+            noise_func = self.noise_function_sampler.sample(self.generator)
+            self.graph.nodes[root_node]["latent_variables"] += noise_func(nrows=self.n_sample_rows, ncols=self.node_dim, generator=self.generator)
 
     def __map_edges_from_node(self, node: int) -> None:
         edge_mappings = self.graph[node]
         # This should actally always have one and only one value
-        # unless I start mergin different graphs to form the SCM.
+        # unless I start merging different graphs to form the SCM.
+        # But it's easies to write as a loop anyway.
         for successor_node, mapping in edge_mappings.items():
             latent_variables_current_node = self.graph.nodes[node]["latent_variables"].clone()
             latent_variables_current_node = normalize(
@@ -151,7 +154,7 @@ class SCM:
 
 def get_scm(prior_hp: PriorHyperParameters) -> SCM:
     generator = torch.Generator().manual_seed(84395)
-    function_configs: list[FunctionSamplingConfig] = [
+    edge_function_configs: list[FunctionSamplingConfig] = [
         {
             "function": small_nn,
             "kwargs": {},
@@ -175,13 +178,39 @@ def get_scm(prior_hp: PriorHyperParameters) -> SCM:
             "weight": 1,
         },
     ]
-    efs = FunctionSampler(function_configs, generator)
+    edge_function_sampler = FunctionSampler(edge_function_configs)
+    noise_function_configs: list[FunctionSamplingConfig] = [
+        {
+            "function": generate_white_noise,
+            "kwargs": {},
+            "weight": 2.0,
+        },
+        {
+            "function": generate_coloured_noise,
+            "kwargs": {
+                "slope_min": 0.3,
+                "slope_max": 4.0,
+            },
+            "weight": 5,
+        },
+        {
+            "function": generate_dynamic_noise,
+            "kwargs": {
+                "slope_min": 0.5,
+                "slope_max": 4.0,
+                "dyn_noise_mean": 0.,
+            },
+            "weight": 3,
+        },
+    ]
+    noise_function_sampler = FunctionSampler(noise_function_configs)
     return SCM(
         45,
         0.1,
         42,
         0.3,
-        efs,
+        edge_function_sampler,
+        noise_function_sampler,
         1000,
         12,
         edge_normalization_dim=0,

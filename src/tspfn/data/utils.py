@@ -48,9 +48,7 @@ class FunctionSampler:
     def __init__(
         self,
         function_sampling_configs: Iterable[FunctionSamplingConfig],
-        generator : torch.Generator,
     ) -> None:
-        self.generator = generator
         self.functions: list[Callable] = []
         weights: list[float] = []
         for config in function_sampling_configs:
@@ -59,6 +57,6 @@ class FunctionSampler:
             weights.append(config["weight"])
         self.weights = torch.Tensor(weights)
 
-    def sample(self) -> Callable:
-        function_index = int(torch.multinomial(self.weights, 1, replacement=False, generator=self.generator).item())
+    def sample(self, generator:torch.Generator) -> Callable:
+        function_index = int(torch.multinomial(self.weights, 1, replacement=False, generator=generator).item())
         return self.functions[function_index]
