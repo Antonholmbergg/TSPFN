@@ -11,7 +11,7 @@ from tspfn.data.edge_functions import (
     small_nn,
     tree_mapping,
 )
-from tspfn.data.input_noise import generate_coloured_noise, generate_dynamic_noise, generate_white_noise
+from tspfn.data.input_noise import generate_coloured_noise, generate_dynamic_noise, generate_white_noise, generate_uniform_noise
 from tspfn.data.prior import PriorHyperParameters
 from tspfn.data.utils import FunctionSampler, FunctionSamplingConfig
 
@@ -32,12 +32,10 @@ class SCM:
         noise_function_sampler: FunctionSampler,
         n_sample_rows: int,
         node_dim: int,
-        edge_normalization_dim: Literal[0, 1] | None,
         edge_noise_std: float,
         n_draws_feature_mapping: int,
     ):
         self.generator = torch.Generator().manual_seed(random_state)
-        self.edge_normalization_dim = edge_normalization_dim
         self.edge_noise_std = edge_noise_std
         self.n_draws_feature_mapping = n_draws_feature_mapping
         self.n_sample_rows = n_sample_rows
@@ -104,7 +102,7 @@ class SCM:
         for successor_node, mapping in edge_mappings.items():
             latent_variables_current_node = self.graph.nodes[node]["latent_variables"].clone()
             latent_variables_current_node = normalize(
-                latent_variables_current_node, generator=self.generator, dim=self.edge_normalization_dim
+                latent_variables_current_node, generator=self.generator
             )
             latent_variables_current_node = add_noise(
                 latent_variables_current_node, noise_std=self.edge_noise_std, generator=self.generator
@@ -153,7 +151,6 @@ class SCM:
 
 
 def get_scm(prior_hp: PriorHyperParameters) -> SCM:
-    generator = torch.Generator().manual_seed(84395)
     edge_function_configs: list[FunctionSamplingConfig] = [
         {
             "function": small_nn,
@@ -202,10 +199,16 @@ def get_scm(prior_hp: PriorHyperParameters) -> SCM:
             },
             "weight": 3,
         },
+        {
+            "function": generate_uniform_noise,
+            "kwargs": {
+            },
+            "weight": 2.0,
+        },
     ]
     noise_function_sampler = FunctionSampler(noise_function_configs)
     return SCM(
-        45,
+        50,
         0.1,
         42,
         0.3,
@@ -213,7 +216,6 @@ def get_scm(prior_hp: PriorHyperParameters) -> SCM:
         noise_function_sampler,
         1000,
         12,
-        edge_normalization_dim=0,
         edge_noise_std=0.05,
         n_draws_feature_mapping=10,
     )
@@ -222,7 +224,8 @@ def get_scm(prior_hp: PriorHyperParameters) -> SCM:
 if __name__ == "__main__":
     gnr_graph = get_scm(1)
     dataset = gnr_graph.get_dataset()
-    print(dataset)
+    for x in dataset:
+        print(x.shape)
 
     import matplotlib.pyplot as plt
 

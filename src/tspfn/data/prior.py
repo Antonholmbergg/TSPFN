@@ -2,7 +2,8 @@ import numpy as np
 import torch
 from pydantic import BaseModel
 from scipy.stats import lognorm
-
+from tspfn.data.utils import FunctionSamplingConfig, FunctionSampler
+from tspfn.data.scm import SCM
 # from attrs import define
 
 
@@ -24,6 +25,90 @@ class PriorConfig(BaseModel):
 
     edge_probability_weights: dict[str, float]
 
+
+class PriorSampler:
+    __in
+
+@dataclass
+class Prior:
+    n_nodes_total: int
+    redirection_probablility: float
+    random_state: int
+    feature_node_fraction: float
+    edge_function_sampler: FunctionSampler
+    noise_function_sampler: FunctionSampler
+    n_sample_rows: int
+    node_dim: int
+    edge_noise_std: float
+    n_draws_feature_mapping: int
+    edge_function_configs: list[FunctionSamplingConfig] = [
+        {
+            "function": small_nn,
+            "kwargs": {},
+            "weight": 3.0,
+        },
+        {
+            "function": categorical_feature_mapping,
+            "kwargs": {
+                "gamma_shape": 2.0,
+                "gamma_rate": 1.0,
+                "min_categories": 2,
+                "max_categories": 20,
+            },
+            "weight": 1,
+        },
+        {
+            "function": tree_mapping,
+            "kwargs": {
+                "max_depth": 6,
+            },
+            "weight": 1,
+        },
+    ]
+    edge_function_sampler = FunctionSampler(edge_function_configs)
+    noise_function_configs: list[FunctionSamplingConfig] = [
+        {
+            "function": generate_white_noise,
+            "kwargs": {},
+            "weight": 2.0,
+        },
+        {
+            "function": generate_coloured_noise,
+            "kwargs": {
+                "slope_min": 0.3,
+                "slope_max": 4.0,
+            },
+            "weight": 5,
+        },
+        {
+            "function": generate_dynamic_noise,
+            "kwargs": {
+                "slope_min": 0.5,
+                "slope_max": 4.0,
+                "dyn_noise_mean": 0.,
+            },
+            "weight": 3,
+        },
+        {
+            "function": generate_uniform_noise,
+            "kwargs": {
+            },
+            "weight": 2.0,
+        },
+    ]
+    noise_function_sampler = FunctionSampler(noise_function_configs)
+    SCM(
+        50,
+        0.1,
+        42,
+        0.3,
+        edge_function_sampler,
+        noise_function_sampler,
+        1000,
+        12,
+        edge_noise_std=0.05,
+        n_draws_feature_mapping=10,
+    )
 
 class PriorHyperParameters:
     def __init__(self, conf: PriorConfig):

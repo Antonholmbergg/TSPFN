@@ -19,7 +19,7 @@ class EdgeMappingOutput(TypedDict):
     categorical_feature: NotRequired[torch.Tensor]
 
 
-def normalize(latent_variables: torch.Tensor, generator: torch.Generator, dim: int | None = None):
+def normalize(latent_variables: torch.Tensor, generator: torch.Generator):
     norm_options = ["minmax", "z-score"]
     norm_option = int(
         torch.randint(
@@ -29,24 +29,14 @@ def normalize(latent_variables: torch.Tensor, generator: torch.Generator, dim: i
             generator=generator,
         ).item()
     )
-    ndims = len(latent_variables.shape)
-    if dim is None:
-        dim = int(
-            torch.randint(
-                0,
-                ndims,
-                size=(1,),
-                generator=generator,
-            ).item()
-        )
     match norm_options[norm_option]:
         case "minmax":
-            dim_max = torch.max(latent_variables, dim=dim, keepdim=True).values
-            dim_min = torch.min(latent_variables, dim=dim, keepdim=True).values
+            dim_max = torch.max(latent_variables)
+            dim_min = torch.min(latent_variables)
             normalized_latent_variables = (latent_variables - dim_min) / (dim_max - dim_min)
         case "z-score":
-            dim_mean = torch.mean(latent_variables, dim=dim, keepdim=True)
-            dim_std = torch.std(latent_variables, dim=dim, keepdim=True)
+            dim_mean = torch.mean(latent_variables)
+            dim_std = torch.std(latent_variables)
             normalized_latent_variables = (latent_variables - dim_mean) / dim_std
         case _:
             msg = f"method {norm_option} is not implemnted"
