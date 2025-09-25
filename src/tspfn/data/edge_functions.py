@@ -19,33 +19,6 @@ class EdgeMappingOutput(TypedDict):
     categorical_feature: NotRequired[torch.Tensor]
 
 
-class EdgeFunctionConfig(TypedDict):
-    function: Callable
-    kwargs: dict[str, Any]
-    weight: float
-
-
-class EdgeFunctionSampler:
-    def __init__(
-        self,
-        random_state: int,
-        function_configs: list[EdgeFunctionConfig],
-    ) -> None:
-        logger.warning("This constructor is only mostly implemented")
-        self.generator = torch.Generator().manual_seed(random_state)
-        self.functions: list[Callable] = []
-        weights: list[float] = []
-        for config in function_configs:
-            partial_func = partial(config["function"], **config["kwargs"])
-            self.functions.append(partial_func)
-            weights.append(config["weight"])
-        self.weights = torch.Tensor(weights)
-
-    def sample(self) -> Callable:
-        function_index = int(torch.multinomial(self.weights, 1, replacement=False, generator=self.generator).item())
-        return self.functions[function_index]
-
-
 def normalize(latent_variables: torch.Tensor, generator: torch.Generator, dim: int | None = None):
     norm_options = ["minmax", "z-score"]
     norm_option = int(
@@ -331,7 +304,3 @@ class DecisionTreeMapping:
 
         outputs = [self._traverse_tree(latent_variables[i], self.root) for i in range(latent_variables.shape[0])]
         return torch.vstack(outputs)
-
-
-if __name__ == "__main__":
-    pass

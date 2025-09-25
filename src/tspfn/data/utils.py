@@ -1,3 +1,7 @@
+from collections.abc import Callable, Iterable
+from functools import partial
+from typing import Any, TypedDict
+
 import torch
 
 
@@ -32,3 +36,29 @@ def gamma(
     samples = standard_samples / rate.expand(shape)
     samples.clamp_(min=torch.finfo(samples.dtype).tiny)
     return samples
+
+
+class FunctionSamplingConfig(TypedDict):
+    function: Callable
+    kwargs: dict[str, Any]
+    weight: float
+
+
+class FunctionSampler:
+    def __init__(
+        self,
+        function_sampling_configs: Iterable[FunctionSamplingConfig],
+        generator : torch.Generator,
+    ) -> None:
+        self.generator = generator
+        self.functions: list[Callable] = []
+        weights: list[float] = []
+        for config in function_sampling_configs:
+            partial_func = partial(config["function"], **config["kwargs"])
+            self.functions.append(partial_func)
+            weights.append(config["weight"])
+        self.weights = torch.Tensor(weights)
+
+    def sample(self) -> Callable:
+        function_index = int(torch.multinomial(self.weights, 1, replacement=False, generator=self.generator).item())
+        return self.functions[function_index]

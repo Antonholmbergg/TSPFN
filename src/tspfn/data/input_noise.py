@@ -1,14 +1,4 @@
-from collections.abc import Callable
-from functools import partial
-from typing import Any, TypedDict
-
 import torch
-
-
-class NoiseFunctionConfig(TypedDict):
-    function: Callable
-    kwargs: dict[str, Any]
-    weight: float
 
 
 def generate_coloured_noise(
@@ -38,18 +28,9 @@ def generate_dynamic_noise(
     return dye_noise(dynamic_noise, slope=slope)
 
 
-def get_input_noise_function(
-    nrows: int, ncols: int, generator: torch.Generator, noise_function_configs: list[NoiseFunctionConfig]
-):
-    functions: list[Callable] = []
-    weights: list[float] = []
-    for config in noise_function_configs:
-        partial_func = partial(config["function"], **config["kwargs"])
-        functions.append(partial_func)
-        weights.append(config["weight"])
-    weights = torch.Tensor(weights)
-    function_index = int(torch.multinomial(weights, 1, replacement=False, generator=generator).item())
-    noise_function = functions[function_index]
+def generate_white_noise(nrows:int, ncols:int, generator:torch.Generator)-> torch.Tensor:
+    return torch.randn(size=(nrows, ncols), generator=generator)
+
 
 
 if __name__ == "__main__":

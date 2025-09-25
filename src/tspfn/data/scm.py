@@ -4,8 +4,6 @@ import networkx as nx
 import torch
 
 from tspfn.data.edge_functions import (
-    EdgeFunctionConfig,
-    EdgeFunctionSampler,
     EdgeMappingOutput,
     add_noise,
     categorical_feature_mapping,
@@ -14,6 +12,7 @@ from tspfn.data.edge_functions import (
     tree_mapping,
 )
 from tspfn.data.prior import PriorHyperParameters
+from tspfn.data.utils import FunctionSampler, FunctionSamplingConfig
 
 
 class SCM:
@@ -28,7 +27,7 @@ class SCM:
         redirection_probablility: float,
         random_state: int,
         feature_node_fraction: float,
-        edge_function_sampler: EdgeFunctionSampler,
+        edge_function_sampler: FunctionSampler,
         n_sample_rows: int,
         node_dim: int,
         edge_normalization_dim: Literal[0, 1] | None,
@@ -151,8 +150,8 @@ class SCM:
 
 
 def get_scm(prior_hp: PriorHyperParameters) -> SCM:
-    random_state = 84395
-    function_configs: list[EdgeFunctionConfig] = [
+    generator = torch.Generator().manual_seed(84395)
+    function_configs: list[FunctionSamplingConfig] = [
         {
             "function": small_nn,
             "kwargs": {},
@@ -176,7 +175,7 @@ def get_scm(prior_hp: PriorHyperParameters) -> SCM:
             "weight": 1,
         },
     ]
-    efs = EdgeFunctionSampler(random_state, function_configs)
+    efs = FunctionSampler(function_configs, generator)
     return SCM(
         45,
         0.1,
