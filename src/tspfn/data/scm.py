@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Self
 
 import networkx as nx
 import torch
@@ -6,19 +6,10 @@ import torch
 from tspfn.data.edge_functions import (
     EdgeMappingOutput,
     add_noise,
-    categorical_feature_mapping,
     normalize,
-    small_nn,
-    tree_mapping,
 )
-from tspfn.data.input_noise import (
-    generate_coloured_noise,
-    generate_dynamic_noise,
-    generate_white_noise,
-    generate_uniform_noise,
-)
-from tspfn.data.prior import PriorHyperParameters
-from tspfn.data.utils import FunctionSampler, FunctionSamplingConfig
+from tspfn.data.prior import Prior
+from tspfn.data.utils import FunctionSampler
 
 
 class SCM:
@@ -56,6 +47,10 @@ class SCM:
         self.feature_node_fraction = feature_node_fraction
         self.__populate_edge_functions()
         self.__set_node_features()
+
+    @classmethod
+    def from_prior(cls, prior: Prior) -> Self:
+        cls(**prior.model_dump())
 
     def __set_node_features(self) -> None:
         """Samples a number of feature nodes from the SCM. These are the features in our dataset.
@@ -155,94 +150,5 @@ class SCM:
         return torch.hstack(continuous_data), torch.hstack(categorical_data)
 
 
-def get_scm(prior_hp: PriorHyperParameters) -> SCM:
-    edge_function_configs: list[FunctionSamplingConfig] = [
-        {
-            "function": small_nn,
-            "kwargs": {},
-            "weight": 3.0,
-        },
-        {
-            "function": categorical_feature_mapping,
-            "kwargs": {
-                "gamma_shape": 2.0,
-                "gamma_rate": 1.0,
-                "min_categories": 2,
-                "max_categories": 20,
-            },
-            "weight": 1,
-        },
-        {
-            "function": tree_mapping,
-            "kwargs": {
-                "max_depth": 6,
-            },
-            "weight": 1,
-        },
-    ]
-    edge_function_sampler = FunctionSampler(edge_function_configs)
-    noise_function_configs: list[FunctionSamplingConfig] = [
-        {
-            "function": generate_white_noise,
-            "kwargs": {},
-            "weight": 2.0,
-        },
-        {
-            "function": generate_coloured_noise,
-            "kwargs": {
-                "slope_min": 0.3,
-                "slope_max": 4.0,
-            },
-            "weight": 5,
-        },
-        {
-            "function": generate_dynamic_noise,
-            "kwargs": {
-                "slope_min": 0.5,
-                "slope_max": 4.0,
-                "dyn_noise_mean": 0.0,
-            },
-            "weight": 3,
-        },
-        {
-            "function": generate_uniform_noise,
-            "kwargs": {},
-            "weight": 2.0,
-        },
-    ]
-    noise_function_sampler = FunctionSampler(noise_function_configs)
-    return SCM(
-        50,
-        0.1,
-        42,
-        0.3,
-        edge_function_sampler,
-        noise_function_sampler,
-        1000,
-        12,
-        edge_noise_std=0.05,
-        n_draws_feature_mapping=10,
-    )
-
-
 if __name__ == "__main__":
-    gnr_graph = get_scm(1)
-    dataset = gnr_graph.get_dataset()
-    for x in dataset:
-        print(x.shape)
-
-    import matplotlib.pyplot as plt
-
-    fig = plt.figure(figsize=(8, 6))
-    pos = nx.spring_layout(gnr_graph.graph, seed=42)
-    nx.draw(
-        gnr_graph.graph,
-        pos,
-        with_labels=True,
-        node_color="lightblue",
-        edge_color="gray",
-        arrowsize=10,
-        node_size=700,
-    )
-    plt.title("Generated GNR Graph")
-    fig.savefig("gnr_graph.png")
+    pass

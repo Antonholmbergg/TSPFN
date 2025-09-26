@@ -1,5 +1,6 @@
-import torch
 import pytest
+import torch
+
 from tspfn.data.input_noise import generate_coloured_noise, generate_dynamic_noise, generate_white_noise
 
 

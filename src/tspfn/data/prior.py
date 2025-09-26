@@ -1,39 +1,44 @@
 from typing import Self
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
-from tspfn.data.utils import FunctionSampler
+from tspfn.data.utils import FunctionSampler, FunctionSamplingConfig
 
 
 class Prior(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     n_nodes_total: int
     redirection_probablility: float
     seed: int
     feature_node_fraction: float
-    # edge_function_sampler: FunctionSampler
-    # input_noise_function_sampler: FunctionSampler
+    edge_function_sampler: FunctionSampler
+    input_noise_function_sampler: FunctionSampler
     n_sample_rows: int
     node_dim: int
     edge_noise_std: float
     n_draws_feature_mapping: int
 
 
-class PriorConfig:  # (BaseModel):
-    # seed: int
-    # n_datasets: int
-    # log_normal_a: float
-    # log_normal_b: float
-    # gamma_alpha: float
-    # gamma_beta: float
-    # lognorm_s: float
+class PriorConfig(BaseModel):
+    seed: int
+    n_datasets: int
+    n_node_lognorm_params: dict[str, float]
+    redirection_gamma_params: dict[str, float]
+    feature_fraction_gamma_params: dict[str, float]
+    node_dim_poisson_params: dict[str, float]
+    edge_noise_std: float
+    n_draws_feature_mapping: int
+    n_rows_poisson_params: dict[str, float]
+    edge_function_configs: list[FunctionSamplingConfig]
+    noise_function_configs: list[FunctionSamplingConfig]
 
     @classmethod
     def from_yaml_config(cls, file_path: str) -> Self:
         with open(file_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
-            print(config)
-        # return cls(**config)
+        # need to add the instansiation of the registerd functions
+        return cls(**config)
 
     def sample_prior(self) -> Prior:
         pass
@@ -45,4 +50,4 @@ class PriorConfig:  # (BaseModel):
 
 
 if __name__ == "__main__":
-    PriorConfig.from_yaml_config("configs/data/prior_testing.yaml")
+    print(PriorConfig.from_yaml_config("configs/data/prior_testing.yaml"))
