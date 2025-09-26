@@ -1,6 +1,9 @@
 import torch
 
+from tspfn.data.utils import register_function
 
+
+@register_function("generate_coloured_noise")
 def generate_coloured_noise(
     nrows: int, ncols: int, generator: torch.Generator, slope_max: float = 3, slope_min: float = 0.5
 ) -> torch.tensor:
@@ -19,6 +22,7 @@ def _dye_noise(noise: torch.Tensor, slope: float) -> torch.Tensor:
     return coloured_noise / torch.std(coloured_noise, dim=0)
 
 
+@register_function("generate_dynamic_noise")
 def generate_dynamic_noise(
     nrows: int,
     ncols: int,
@@ -35,10 +39,12 @@ def generate_dynamic_noise(
     return _dye_noise(dynamic_noise, slope=slope)
 
 
+@register_function("generate_white_noise")
 def generate_white_noise(nrows: int, ncols: int, generator: torch.Generator) -> torch.Tensor:
     return torch.randn(size=(nrows, ncols), generator=generator)
 
 
+@register_function("generate_uniform_noise")
 def generate_uniform_noise(nrows: int, ncols: int, generator: torch.Generator) -> torch.Tensor:
     return torch.rand(size=(nrows, ncols), generator=generator)
 

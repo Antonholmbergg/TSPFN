@@ -4,6 +4,8 @@ from typing import Any, TypedDict
 
 import torch
 
+FUNCTION_REGISTRY: dict[str, Callable] = {}
+
 
 def gamma(
     concentration: torch.Tensor, rate: torch.Tensor, sample_shape: tuple[int], generator: torch.Generator
@@ -60,3 +62,18 @@ class FunctionSampler:
     def sample(self, generator: torch.Generator) -> Callable:
         function_index = int(torch.multinomial(self.weights, 1, replacement=False, generator=generator).item())
         return self.functions[function_index]
+
+
+def register_function(name: str):
+    def decorator(func: Callable) -> Callable:
+        FUNCTION_REGISTRY[name] = func
+        return func
+
+    return decorator
+
+
+def get_function(name: str) -> Callable:
+    if name not in FUNCTION_REGISTRY:
+        msg = f"Function '{name}' not found in registry"
+        raise ValueError(msg)
+    return FUNCTION_REGISTRY[name]

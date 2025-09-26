@@ -9,7 +9,7 @@ from typing import Any, NotRequired, Required, TypedDict, cast
 import torch
 from torch import nn
 
-from tspfn.data.utils import gamma
+from tspfn.data.utils import gamma, register_function
 
 logger = logging.getLogger()
 
@@ -53,6 +53,7 @@ def add_noise(
     return latent_variables + noise
 
 
+@register_function("categorical_feature_mapping")
 def categorical_feature_mapping(
     latent_variables: torch.Tensor,
     generator: torch.Generator,
@@ -140,6 +141,7 @@ def __sample_activation_function(generator: torch.Generator) -> Callable:
     return cast(Callable[..., Any], abailable_activation_functions[int(choice.item())])
 
 
+@register_function("small_nn")
 def small_nn(
     latent_variables: torch.Tensor,
     generator: torch.Generator,
@@ -171,6 +173,7 @@ class DecisionNode:
     is_leaf: bool = False
 
 
+@register_function("tree_mapping")
 def tree_mapping(latent_variables: torch.Tensor, generator: torch.Generator, max_depth: int) -> EdgeMappingOutput:
     """_summary_
 
