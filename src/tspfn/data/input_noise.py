@@ -20,21 +20,27 @@ def _dye_noise(noise: torch.Tensor, slope: float) -> torch.Tensor:
 
 
 def generate_dynamic_noise(
-    nrows: int, ncols: int, generator: torch.Generator, slope_max: float = 3, slope_min:float=0.5, dyn_noise_mean: float = 0
+    nrows: int,
+    ncols: int,
+    generator: torch.Generator,
+    slope_max: float = 3,
+    slope_min: float = 0.5,
+    dyn_noise_mean: float = 0,
 ) -> torch.tensor:
-    coloured_noise = generate_coloured_noise(nrows, ncols, generator=generator, slope_max=slope_max, slope_min=slope_min)
+    coloured_noise = generate_coloured_noise(
+        nrows, ncols, generator=generator, slope_max=slope_max, slope_min=slope_min
+    )
     dynamic_noise = torch.normal(dyn_noise_mean, torch.abs(coloured_noise), generator=generator)
     slope = torch.rand(1, generator=generator) * slope_max
     return _dye_noise(dynamic_noise, slope=slope)
 
 
-def generate_white_noise(nrows:int, ncols:int, generator:torch.Generator)-> torch.Tensor:
+def generate_white_noise(nrows: int, ncols: int, generator: torch.Generator) -> torch.Tensor:
     return torch.randn(size=(nrows, ncols), generator=generator)
 
 
-def generate_uniform_noise(nrows:int, ncols:int, generator:torch.Generator)-> torch.Tensor:
+def generate_uniform_noise(nrows: int, ncols: int, generator: torch.Generator) -> torch.Tensor:
     return torch.rand(size=(nrows, ncols), generator=generator)
-
 
 
 if __name__ == "__main__":
@@ -53,7 +59,7 @@ if __name__ == "__main__":
 
     axes[0, 0].set_title("White noise")
     axes[0, 0].plot(white_noise)
-    
+
     axes[0, 1].set_title("Uniform noise")
     axes[0, 1].plot(uniform_noise)
 

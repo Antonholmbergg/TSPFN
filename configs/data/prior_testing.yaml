@@ -1,0 +1,29 @@
+edge_function_configs:
+  - function: tspfn.data.edge_functions.small_nn
+    kwargs: {}
+    weight: 3.0
+  - function: tspfn.data.edge_functions.categorical_feature_mapping
+    kwargs:
+      {
+        gamma_shape: 2.0,
+        gamma_rate: 1.0,
+        min_categories: 2,
+        max_categories: 20,
+      }
+    weight: 1.0
+  - function: tspfn.data.edge_functions.tree_mapping
+    kwargs: { max_depth: 6 }
+    weight: 1.0
+noise_function_configs:
+  - function: tspfn.data.input_noise.generate_white_noise
+    kwargs: {}
+    weight: 2.0
+  - function: tspfn.data.input_noise.generate_coloured_noise,
+    kwargs: { slope_min: 0.3, slope_max: 4.0 }
+    weight: 5.0
+  - function: tspfn.data.input_noise.generate_dynamic_noise
+    kwargs: { slope_min: 0.5, slope_max: 4.0, dyn_noise_mean: 0.0 }
+    weight: 3.0
+  - function: tspfn.data.input_noise.generate_uniform_noise
+    kwargs: {}
+    weight: 2.0

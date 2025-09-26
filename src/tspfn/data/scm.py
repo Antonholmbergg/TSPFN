@@ -11,7 +11,12 @@ from tspfn.data.edge_functions import (
     small_nn,
     tree_mapping,
 )
-from tspfn.data.input_noise import generate_coloured_noise, generate_dynamic_noise, generate_white_noise, generate_uniform_noise
+from tspfn.data.input_noise import (
+    generate_coloured_noise,
+    generate_dynamic_noise,
+    generate_white_noise,
+    generate_uniform_noise,
+)
 from tspfn.data.prior import PriorHyperParameters
 from tspfn.data.utils import FunctionSampler, FunctionSamplingConfig
 
@@ -92,7 +97,9 @@ class SCM:
     def __initialize_root_nodes(self) -> None:
         for root_node in self.root_nodes:
             noise_func = self.noise_function_sampler.sample(self.generator)
-            self.graph.nodes[root_node]["latent_variables"] += noise_func(nrows=self.n_sample_rows, ncols=self.node_dim, generator=self.generator)
+            self.graph.nodes[root_node]["latent_variables"] += noise_func(
+                nrows=self.n_sample_rows, ncols=self.node_dim, generator=self.generator
+            )
 
     def __map_edges_from_node(self, node: int) -> None:
         edge_mappings = self.graph[node]
@@ -101,9 +108,7 @@ class SCM:
         # But it's easies to write as a loop anyway.
         for successor_node, mapping in edge_mappings.items():
             latent_variables_current_node = self.graph.nodes[node]["latent_variables"].clone()
-            latent_variables_current_node = normalize(
-                latent_variables_current_node, generator=self.generator
-            )
+            latent_variables_current_node = normalize(latent_variables_current_node, generator=self.generator)
             latent_variables_current_node = add_noise(
                 latent_variables_current_node, noise_std=self.edge_noise_std, generator=self.generator
             )
@@ -195,14 +200,13 @@ def get_scm(prior_hp: PriorHyperParameters) -> SCM:
             "kwargs": {
                 "slope_min": 0.5,
                 "slope_max": 4.0,
-                "dyn_noise_mean": 0.,
+                "dyn_noise_mean": 0.0,
             },
             "weight": 3,
         },
         {
             "function": generate_uniform_noise,
-            "kwargs": {
-            },
+            "kwargs": {},
             "weight": 2.0,
         },
     ]
