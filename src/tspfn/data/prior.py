@@ -3,7 +3,7 @@ from typing import Self
 import yaml
 from pydantic import BaseModel, ConfigDict
 
-from tspfn.data.utils import FunctionSampler, FunctionSamplingConfig
+from tspfn.data.utils import FunctionSampler, FunctionSamplingConfig, get_function
 
 
 class Prior(BaseModel):
@@ -37,7 +37,11 @@ class PriorConfig(BaseModel):
     def from_yaml_config(cls, file_path: str) -> Self:
         with open(file_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
-        # need to add the instansiation of the registerd functions
+        # need to instansiate the registerd functions
+        for function_sampler_group in ["noise_function_configs", "edge_function_configs"]:
+            sampler_group_config = config[function_sampler_group]
+            for function_sampling_config in sampler_group_config:
+                function_sampling_config["function"] = get_function(function_sampling_config["function"])
         return cls(**config)
 
     def sample_prior(self) -> Prior:
@@ -50,4 +54,4 @@ class PriorConfig(BaseModel):
 
 
 if __name__ == "__main__":
-    print(PriorConfig.from_yaml_config("configs/data/prior_testing.yaml"))
+    prior_config = PriorConfig.from_yaml_config("configs/data/prior_testing.yaml")
