@@ -2,7 +2,7 @@ seed: 424242
 n_datasets: 2
 
 # Graph params
-n_node_lognorm_params: { "s": 0.954, "loc": 50, "scale": 1.0 }
+n_node_loguniform_params: { "a": 0.01, "b": 1.25, "loc": 50, "scale": 10.0 }
 redirection_gamma_params: { "a": 1.99, "loc": 0.1, "scale": 0.2 }
 feature_fraction_gamma_params: { "a": 1.99, "loc": 0.3, "scale": 0.2 }
 node_dim_poisson_params: { "mu": 6.0 }
