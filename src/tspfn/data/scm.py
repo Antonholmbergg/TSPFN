@@ -120,7 +120,7 @@ class SCM:
                 else:
                     # This is questionable but I'm not sure what to do in this situation yet.
                     # ignore it? concatenate it?
-                    # Add it (thats what I do to the embeddigns that represent the catagories too)?
+                    # Add it? (thats what I do to the embeddigns that represent the catagories too).
                     self.graph.nodes[successor_node]["categorical_feature"] += cat_feature
 
     def __proppagate(

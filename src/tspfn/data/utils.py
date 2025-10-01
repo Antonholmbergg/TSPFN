@@ -59,6 +59,7 @@ class FunctionSampler:
             weights.append(config["weight"])
         self.weights = torch.Tensor(weights)
 
+
     def sample(self, generator: torch.Generator) -> Callable:
         function_index = int(torch.multinomial(self.weights, 1, replacement=False, generator=generator).item())
         return self.functions[function_index]

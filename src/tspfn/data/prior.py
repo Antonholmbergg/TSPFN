@@ -32,6 +32,7 @@ class PriorConfig(BaseModel):
     n_rows_poisson_params: dict[str, float]
     edge_function_configs: list[FunctionSamplingConfig]
     noise_function_configs: list[FunctionSamplingConfig]
+    n_draws_function_config_weights: int
     _rng: np.random.RandomState = PrivateAttr()
 
     def __init__(self, **data: Any):
@@ -72,7 +73,17 @@ class PriorConfig(BaseModel):
         )
 
     def __sample_function_configs(self, func_sampling_configs: list[FunctionSamplingConfig]) -> FunctionSampler:
-        """::TODO sample the weights of the config such that it is not exactly the same each time"""
+        """::TODO try to make the assosiation between weight, new weight and their corresponding config a bit more explicit"""
+        weights = []
+        for conf in func_sampling_configs:
+            weights.append(conf["weight"])
+        weights = np.array(weights)
+        weights /= weights.sum()
+        
+        new_weights = self._rng.multinomial(self.n_draws_function_config_weights, weights)
+
+        for i, conf in enumerate(func_sampling_configs):
+            conf["weight"] = new_weights[i]
         return FunctionSampler(func_sampling_configs)
 
 
