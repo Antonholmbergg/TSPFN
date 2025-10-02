@@ -8,9 +8,9 @@ def test_seeding():
     prior2 = prior_config.sample_prior()
     assert prior1 != prior2
     
-    prior_config = PriorConfig.from_yaml_config(get_test_config_path())
-    second_prior1 = prior_config.sample_prior()
-    second_prior2 = prior_config.sample_prior()
+    second_prior_config = PriorConfig.from_yaml_config(get_test_config_path())
+    second_prior1 = second_prior_config.sample_prior()
+    second_prior2 = second_prior_config.sample_prior()
     
     assert prior1 == second_prior1
     assert prior2 == second_prior2

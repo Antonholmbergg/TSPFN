@@ -51,6 +51,7 @@ class FunctionSampler:
         self,
         function_sampling_configs: Iterable[FunctionSamplingConfig],
     ) -> None:
+        self.function_sampling_configs = function_sampling_configs
         self.functions: list[Callable] = []
         weights: list[float] = []
         for config in function_sampling_configs:
@@ -63,6 +64,11 @@ class FunctionSampler:
     def sample(self, generator: torch.Generator) -> Callable:
         function_index = int(torch.multinomial(self.weights, 1, replacement=False, generator=generator).item())
         return self.functions[function_index]
+    
+    def __eq__(self, other):
+        if not isinstance(other, FunctionSampler):
+            return False
+        return self.function_sampling_configs == other.function_sampling_configs
 
 
 def register_function(name: str):
