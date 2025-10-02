@@ -5,7 +5,7 @@ n_draws_function_config_weights: 5
 # Graph params
 n_node_loguniform_params: { "a": 0.01, "b": 1.25, "loc": 50, "scale": 10.0 }
 redirection_gamma_params: { "a": 1.99, "loc": 0.1, "scale": 0.2 }
-feature_fraction_gamma_params: { "a": 1.99, "loc": 0.3, "scale": 0.2 }
+feature_fraction_gamma_params: { "a": 2.99, "loc": 0.3, "scale": 0.02 }
 node_dim_poisson_params: { "mu": 6.0 }
 
 # Edge mapping configuration params

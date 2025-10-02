@@ -31,6 +31,7 @@ class SCM:
         edge_noise_std: float,
         n_draws_feature_mapping: int,
     ):
+        self.seed = seed
         self.generator = torch.Generator().manual_seed(seed)
         self.edge_noise_std = edge_noise_std
         self.n_draws_feature_mapping = n_draws_feature_mapping
@@ -45,8 +46,7 @@ class SCM:
         self.edge_function_sampler = edge_function_sampler
         self.input_noise_function_sampler = input_noise_function_sampler
         self.feature_node_fraction = feature_node_fraction
-        self.__populate_edge_functions()
-        self.__set_node_features()
+
 
     @classmethod
     def from_prior(cls, prior: Prior) -> Self:
@@ -131,6 +131,8 @@ class SCM:
                 self.__map_edges_from_node(node)
 
     def get_dataset(self) -> tuple[torch.Tensor, torch.Tensor]:
+        self.__populate_edge_functions()
+        self.__set_node_features()
         self.__initialize_root_nodes()
         self.__proppagate()
         continuous_data = []
@@ -147,4 +149,5 @@ class SCM:
             else:
                 continuos_feature = torch.matmul(self.graph.nodes[node]["latent_variables"], continuos_feature_mapping)
                 continuous_data.append(continuos_feature.reshape(-1, 1))
-        return torch.hstack(continuous_data), torch.hstack(categorical_data)
+        self.generator = torch.Generator().manual_seed(self.seed)
+        return torch.hstack([*continuous_data, *categorical_data])
