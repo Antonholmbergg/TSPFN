@@ -77,7 +77,7 @@ class PriorConfig(BaseModel):
         weights = []
         for conf in func_sampling_configs:
             weights.append(conf["weight"])
-        weights = np.array(weights)
+        weights = np.array(weights, dtype="float64")
         weights /= weights.sum()
         
         new_weights = self._rng.multinomial(self.n_draws_function_config_weights, weights)
