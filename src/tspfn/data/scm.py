@@ -47,7 +47,6 @@ class SCM:
         self.input_noise_function_sampler = input_noise_function_sampler
         self.feature_node_fraction = feature_node_fraction
 
-
     @classmethod
     def from_prior(cls, prior: Prior) -> Self:
         return cls(**prior.model_dump())

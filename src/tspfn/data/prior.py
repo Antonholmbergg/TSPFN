@@ -1,8 +1,10 @@
-from typing import Self, Any
+from typing import Any, Self
+
 import numpy as np
 import yaml
 from pydantic import BaseModel, ConfigDict, PrivateAttr
-from scipy.stats import loguniform, gamma, poisson
+from scipy.stats import gamma, loguniform, poisson
+
 from tspfn.data.utils import FunctionSampler, FunctionSamplingConfig, get_function
 
 
@@ -74,12 +76,9 @@ class PriorConfig(BaseModel):
 
     def __sample_function_configs(self, func_sampling_configs: list[FunctionSamplingConfig]) -> FunctionSampler:
         """::TODO try to make the assosiation between weight, new weight and their corresponding config a bit more explicit"""
-        weights = []
-        for conf in func_sampling_configs:
-            weights.append(conf["weight"])
-        weights = np.array(weights, dtype="float64")
+        weights = np.array([conf["weight"] for conf in func_sampling_configs], dtype="float64")
         weights /= weights.sum()
-        
+
         new_weights = self._rng.multinomial(self.n_draws_function_config_weights, weights)
 
         for i, conf in enumerate(func_sampling_configs):

@@ -60,15 +60,18 @@ class FunctionSampler:
             weights.append(config["weight"])
         self.weights = torch.Tensor(weights)
 
-
     def sample(self, generator: torch.Generator) -> Callable:
         function_index = int(torch.multinomial(self.weights, 1, replacement=False, generator=generator).item())
         return self.functions[function_index]
-    
+
     def __eq__(self, other):
+        """For testing purposes"""
         if not isinstance(other, FunctionSampler):
             return False
         return self.function_sampling_configs == other.function_sampling_configs
+
+    def __hash__(self) -> int:
+        return hash(self.function_sampling_configs)
 
 
 def register_function(name: str):
