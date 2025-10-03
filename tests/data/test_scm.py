@@ -1,4 +1,5 @@
 import networkx as nx
+import pytest
 import torch
 from torch.testing import assert_close
 
@@ -6,7 +7,7 @@ from tspfn.data.prior import PriorConfig
 from tspfn.data.scm import SCM
 
 from . import get_test_config_path
-import pytest
+
 
 @pytest.mark.parametrize("seed", [37842, 42837])
 def test_scm_is_dag(seed):
@@ -21,7 +22,7 @@ def test_seeding(seed):
     prior1 = prior_config.sample_prior(seed)
     dataset1 = SCM.from_prior(prior1).get_dataset()
     second_dataset1 = SCM.from_prior(prior1).get_dataset()
-    prior2 = prior_config.sample_prior(seed*2)
+    prior2 = prior_config.sample_prior(seed * 2)
     assert_close(dataset1, second_dataset1)
 
     dataset2 = SCM.from_prior(prior2).get_dataset()

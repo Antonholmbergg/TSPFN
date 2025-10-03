@@ -1,4 +1,4 @@
-from typing import Any, Self
+from typing import Self
 
 import numpy as np
 import yaml
@@ -33,8 +33,7 @@ class PriorConfig(BaseModel):
     edge_function_configs: list[FunctionSamplingConfig]
     noise_function_configs: list[FunctionSamplingConfig]
     n_draws_function_config_weights: int
-    _rng:np.random.RandomState = PrivateAttr()
-        
+    _rng: np.random.RandomState = PrivateAttr()
 
     @classmethod
     def from_yaml_config(cls, file_path: str) -> Self:
@@ -47,7 +46,7 @@ class PriorConfig(BaseModel):
                 function_sampling_config["function"] = get_function(function_sampling_config["function"])
         return cls(**config)
 
-    def sample_prior(self, seed:int) -> Prior:
+    def sample_prior(self, seed: int) -> Prior:
         self._rng = np.random.RandomState(seed=seed)
         n_nodes = int(loguniform.rvs(**self.n_node_loguniform_params, random_state=self._rng))
         redirection_probability = gamma.rvs(**self.redirection_gamma_params, random_state=self._rng)
