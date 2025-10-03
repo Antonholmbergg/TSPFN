@@ -1,7 +1,24 @@
 import torch
+import math
+from tspfn.data.prior import Prior, PriorConfig
 
-from tspfn.data.prior import Prior
+class SyntheticDataset(torch.utils.data.IterableDataset):
+    def __init__(self, prior_config: PriorConfig):
+        super(SyntheticDataset).__init__()
+        self.prior_config = prior_config
 
+    def __iter__(self):
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is None:  # single-process data loading, return the full iterator
+            iter_start = self.start
+            iter_end = self.end
+        else:  # in a worker process
+            # split workload
+            per_worker = int(math.ceil((self.end - self.start) / float(worker_info.num_workers)))
+            worker_id = worker_info.id
+            iter_start = self.start + worker_id * per_worker
+            iter_end = min(iter_start + per_worker, self.end)
+        return iter(range(iter_start, iter_end))
 
 class SyntheticDataset(torch.utils.data.IterableDataset):
     def __init__(self, prior: Prior, num_samples: int):
@@ -12,12 +29,4 @@ class SyntheticDataset(torch.utils.data.IterableDataset):
         return self
 
     def __next__(self):
-        # scm = get_scm(self.prior_hp)
-        # continuous_data, categorical_covariates = scm.get_dataset()
-        # select one feature to be the label
-        # postprocess the features
-        # ts = continuous_data[:, 0]
-        # continuous_covariates = continuous_data[:, 1:]
-
-        # return ts, continuous_covariates, categorical_covariates
         pass

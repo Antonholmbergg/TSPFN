@@ -23,8 +23,6 @@ class Prior(BaseModel):
 
 
 class PriorConfig(BaseModel):
-    seed: int
-    n_datasets: int
     n_node_loguniform_params: dict[str, float]
     redirection_gamma_params: dict[str, float]
     feature_fraction_gamma_params: dict[str, float]
@@ -35,11 +33,8 @@ class PriorConfig(BaseModel):
     edge_function_configs: list[FunctionSamplingConfig]
     noise_function_configs: list[FunctionSamplingConfig]
     n_draws_function_config_weights: int
-    _rng: np.random.RandomState = PrivateAttr()
-
-    def __init__(self, **data: Any):
-        super().__init__(**data)
-        self._rng = np.random.RandomState(seed=self.seed)
+    _rng:np.random.RandomState = PrivateAttr()
+        
 
     @classmethod
     def from_yaml_config(cls, file_path: str) -> Self:
@@ -52,7 +47,8 @@ class PriorConfig(BaseModel):
                 function_sampling_config["function"] = get_function(function_sampling_config["function"])
         return cls(**config)
 
-    def sample_prior(self) -> Prior:
+    def sample_prior(self, seed:int) -> Prior:
+        self._rng = np.random.RandomState(seed=seed)
         n_nodes = int(loguniform.rvs(**self.n_node_loguniform_params, random_state=self._rng))
         redirection_probability = gamma.rvs(**self.redirection_gamma_params, random_state=self._rng)
         feature_fraction_gamma_params = gamma.rvs(**self.feature_fraction_gamma_params, random_state=self._rng)
@@ -60,11 +56,11 @@ class PriorConfig(BaseModel):
         node_dim = poisson.rvs(**self.node_dim_poisson_params, random_state=self._rng)
         edge_function_sampler = self.__sample_function_configs(self.edge_function_configs)
         input_noise_function_sampler = self.__sample_function_configs(self.noise_function_configs)
-        seed = self._rng.randint(0, 1_000_000_000)
+        prior_seed = self._rng.randint(0, 1_000_000_000)
         return Prior(
             n_nodes_total=n_nodes,
             redirection_probablility=redirection_probability,
-            seed=seed,
+            seed=prior_seed,
             feature_node_fraction=feature_fraction_gamma_params,
             edge_function_sampler=edge_function_sampler,
             input_noise_function_sampler=input_noise_function_sampler,

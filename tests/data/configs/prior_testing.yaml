@@ -1,5 +1,3 @@
-seed: 424242
-n_datasets: 2
 n_draws_function_config_weights: 5
 
 # Graph params
