@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Self
 
 import numpy as np
@@ -47,7 +48,7 @@ class PriorConfig(BaseModel):
         return cls(**config)
 
     def sample_prior(self, seed: int) -> Prior:
-        self._rng = np.random.RandomState(seed=seed)
+        self._rng = np.random.default_rng(seed=seed)
         n_nodes = int(loguniform.rvs(**self.n_node_loguniform_params, random_state=self._rng))
         redirection_probability = gamma.rvs(**self.redirection_gamma_params, random_state=self._rng)
         feature_fraction_gamma_params = gamma.rvs(**self.feature_fraction_gamma_params, random_state=self._rng)
@@ -55,7 +56,7 @@ class PriorConfig(BaseModel):
         node_dim = poisson.rvs(**self.node_dim_poisson_params, random_state=self._rng)
         edge_function_sampler = self.__sample_function_configs(self.edge_function_configs)
         input_noise_function_sampler = self.__sample_function_configs(self.noise_function_configs)
-        prior_seed = self._rng.randint(0, 1_000_000_000)
+        prior_seed = self._rng.integers(0, 1_000_000_000)
         return Prior(
             n_nodes_total=n_nodes,
             redirection_probablility=redirection_probability,
@@ -71,19 +72,12 @@ class PriorConfig(BaseModel):
 
     def __sample_function_configs(self, func_sampling_configs: list[FunctionSamplingConfig]) -> FunctionSampler:
         """::TODO try to make the assosiation between weight, new weight and their corresponding config a bit more explicit"""
-        weights = np.array([conf["weight"] for conf in func_sampling_configs], dtype="float64")
+        func_sampling_weights_instance = deepcopy(func_sampling_configs)
+        weights = np.array([conf["weight"] for conf in func_sampling_weights_instance], dtype="float64")
         weights /= weights.sum()
 
         new_weights = self._rng.multinomial(self.n_draws_function_config_weights, weights)
 
-        for i, conf in enumerate(func_sampling_configs):
+        for i, conf in enumerate(func_sampling_weights_instance):
             conf["weight"] = new_weights[i]
-        return FunctionSampler(func_sampling_configs)
-
-
-if __name__ == "__main__":
-    prior_config = PriorConfig.from_yaml_config("configs/data/prior_testing.yaml")
-    prior1 = prior_config.sample_prior()
-    print(prior1)
-    prior2 = prior_config.sample_prior()
-    print(prior2)
+        return FunctionSampler(func_sampling_weights_instance)

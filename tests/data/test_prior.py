@@ -5,7 +5,7 @@ from tspfn.data.prior import PriorConfig
 from . import get_test_config_path
 
 
-@pytest.mark.parametrize("seed", [37842, 42837])
+@pytest.mark.parametrize("seed", [37842, 42837, 6374])
 def test_seeding(seed):
     prior_config = PriorConfig.from_yaml_config(get_test_config_path())
     prior1 = prior_config.sample_prior(seed)
