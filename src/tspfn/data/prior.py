@@ -1,3 +1,4 @@
+import os
 from copy import deepcopy
 from typing import Self
 
@@ -37,7 +38,7 @@ class PriorConfig(BaseModel):
     _rng: np.random.RandomState = PrivateAttr()
 
     @classmethod
-    def from_yaml_config(cls, file_path: str) -> Self:
+    def from_yaml_config(cls, file_path: os.PathLike) -> Self:
         with open(file_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
         # need to instansiate the registered functions
