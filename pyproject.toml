@@ -1,6 +1,10 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "tspfn"
-dynamic = ["version"]
+version = "0.0.1"
 description = ''
 readme = "README.md"
 requires-python = ">=3.13"
@@ -18,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
+ "jsonargparse[signatures]>=4.41.0",
  "lightning>=2.5.4",
  "networkx>=3.5",
  "polars>=1.33.0",
@@ -30,6 +35,8 @@ Documentation = "https://github.com/Antonholmbergg/TSPFN#readme"
 Issues = "https://github.com/Antonholmbergg/TSPFN/issues"
 Source = "https://github.com/Antonholmbergg/TSPFN"
 
+[project.scripts]
+tspfn = "tspfn.train:main"
 
 [tool.coverage.run]
 source_pkgs = ["tspfn", "tests"]

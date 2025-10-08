@@ -9,5 +9,9 @@ class StantardModelCLI(LightningCLI):
         pass
 
 
+def main():
+    _ = StantardModelCLI(SimpleModel, TSPFNDataModule)
+
+
 if __name__ == "__main__":
-    cli = StantardModelCLI(SimpleModel, TSPFNDataModule)
+    main()
