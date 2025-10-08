@@ -24,23 +24,21 @@ class TSPFNDataModule(lightning.LightningDataModule):
         super().__init__()
         self.prior_config_path = prior_config_path
         self.prior = Prior.from_yaml_config(self.prior_config_path)
-        
+
         self.train_batch_size = train_batch_size
         self.train_max_steps = train_max_steps
         self.train_seed = train_seed
-        
+
         self.val_batch_size = val_batch_size
         self.val_max_steps = n_val_steps
         self.val_seed = val_seed
-        
+
         self.test_batch_size = test_batch_size
         self.test_max_steps = n_test_steps
         self.test_seed = test_seed
-        
-        
 
     def prepare_data(self):
-        # Don't thing I need to do anything here
+        # Don't think I need to do anything here
         pass
 
     def setup(self, stage: str):
