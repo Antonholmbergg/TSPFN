@@ -53,3 +53,11 @@ class SimpleModel(lightning.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=1e-3)
+
+
+if __name__ == "__main__":
+    encoder_layer = nn.TransformerEncoderLayer(d_model=512, nhead=8)
+    forecast_head = nn.Linear(512, 1)
+    src = torch.rand(100, 1, 512)
+    out = forecast_head(encoder_layer(src).flatten())
+    print(out.shape)
