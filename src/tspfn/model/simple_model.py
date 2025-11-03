@@ -44,9 +44,8 @@ class SimpleModel(lightning.LightningModule):
         self.forecast_head = nn.Linear(model_dim, output_dim)
 
     def training_step(self, batch, batch_idx):
-        x, _ = batch
-        x = x.view(x.size(0), -1)
-        x_hat = self.encoder(x)
+        x, y = batch
+        x_hat = self.transformer(x)
         loss = nn.functional.mse_loss(x_hat, x)
         self.log("train_loss", loss)
         return loss
@@ -56,8 +55,10 @@ class SimpleModel(lightning.LightningModule):
 
 
 if __name__ == "__main__":
-    encoder_layer = nn.TransformerEncoderLayer(d_model=512, nhead=8)
-    forecast_head = nn.Linear(512, 1)
-    src = torch.rand(100, 1, 512)
-    out = forecast_head(encoder_layer(src).flatten())
+    encoder_layer = nn.TransformerEncoderLayer(d_model=64, nhead=8)
+    forecast_head = nn.Linear(64, 1)
+    src = torch.rand(100, 2, 64)
+    latent_var = encoder_layer(src)
+    print(latent_var.shape)
+    out = forecast_head(latent_var)
     print(out.shape)
