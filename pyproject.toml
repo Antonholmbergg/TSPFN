@@ -22,12 +22,11 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
- "jsonargparse[signatures]>=4.41.0",
- "lightning>=2.5.4",
- "networkx>=3.5",
- "polars>=1.33.0",
- "pydantic>=2.11.7",
- "torch>=2.8.0",
+    "jsonargparse[signatures]>=4.42.0",
+    "lightning>=2.5.5",
+    "networkx>=3.5",
+    "pydantic>=2.11.7",
+    "torch>=2.9.0",
 ]
 
 [project.urls]
@@ -61,13 +60,17 @@ dev = [
     "scipy-stubs>=1.16.1.1",
     "types-networkx>=3.5.0.20250901",
 ]
-#types = ["types-"]
 
 [tool.mypy]
 python_version = 3.13
 install_types=true
 non_interactive=true
 check_untyped_defs=true
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu" },
+]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"

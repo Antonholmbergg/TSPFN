@@ -99,11 +99,17 @@ class Attention(nn.Module):
         # Step 2. Split heads and prepare for SDPA
         # reshape query, key, value to separate by head
         # (N, L_t, total_embedding_dim) -> (N, L_t, n_heads, dim_head) -> (N, n_heads, L_t, dim_head)
-        query = query.unflatten(-1, [self.n_heads, self.dim_head]).transpose(1, 2)
+        query = query.unflatten(-1, [self.n_heads, self.dim_head]).transpose(1, 2).contiguous()
         # (N, L_s, total_embedding_dim) -> (N, L_s, n_heads, dim_head) -> (N, n_heads, L_s, dim_head)
-        key = key.unflatten(-1, [self.n_heads, self.dim_head]).transpose(1, 2)
+        key = key.unflatten(-1, [self.n_heads, self.dim_head]).transpose(1, 2).contiguous()
         # (N, L_s, total_embedding_dim) -> (N, L_s, n_heads, dim_head) -> (N, n_heads, L_s, dim_head)
-        value = value.unflatten(-1, [self.n_heads, self.dim_head]).transpose(1, 2)
+        value = value.unflatten(-1, [self.n_heads, self.dim_head]).transpose(1, 2).contiguous()
+        if query.is_contiguous() is False:
+            print("query is not contigous")
+        if key.is_contiguous() is False:
+            print("key is not contigous")
+        if value.is_contiguous() is False:
+            print("value is not contigous")
 
         # Step 3. Run SDPA
         # (N, n_heads, L_t, dim_head)
@@ -114,3 +120,21 @@ class Attention(nn.Module):
         # Step 4. Apply output projection
         # (N, L_t, total_embedding_dim) -> (N, L_t, output_dim)
         return self.out_proj(attn_output)
+
+
+if __name__ == "__main__":
+    attention = Attention(
+        embedding_dim_q=64,
+        embedding_dim_k=64,
+        embedding_dim_v=64,
+        total_embedding_dim=512,
+        n_heads=8,
+        dropout=0.0,
+    )
+    attention = torch.compile(attention)
+    inp = torch.nested.nested_tensor(
+        tensor_list=[torch.rand(100, 64), torch.rand(10, 64), torch.rand(1000, 64)], layout=torch.jagged
+    )
+    # inp = torch.rand(2, 1000, 64)
+    out = attention(inp, inp, inp)
+    print(inp, out)

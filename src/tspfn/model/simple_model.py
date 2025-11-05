@@ -25,6 +25,7 @@ class SimpleModel(lightning.LightningModule):
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
         torch_compile: bool = False,
+        is_causal: bool = True,
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["loss"])
@@ -41,6 +42,7 @@ class SimpleModel(lightning.LightningModule):
             "bias": bias,
             "device": device,
             "dtype": dtype,
+            "is_causal": is_causal,
         }
         self.transformer_layers = nn.ModuleList(
             TransformerBlock(**transformer_kwargs) for _ in range(n_transformer_blocks)
@@ -79,6 +81,8 @@ if __name__ == "__main__":
         loss=nn.MSELoss(),
         dim_feedforward=512,
         output_dim=64,
+        # torch_compile=True,
+        is_causal=False,
     )
     model.configure_model()
     inp = torch.nested.nested_tensor(
