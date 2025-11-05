@@ -59,7 +59,7 @@ class SimpleModel(lightning.LightningModule):
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         return self.model(inputs)
 
-    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], *args):
+    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], *args):  # noqa
         x, y = batch
         y_hat = self(x, y)
         loss = self.loss(y_hat, y)
