@@ -7,7 +7,7 @@ name = "tspfn"
 version = "0.0.1"
 description = ''
 readme = "README.md"
-requires-python = "==3.13.*"
+requires-python = ">=3.13"
 keywords = []
 authors = [{ name = "H. Anton", email = "anton.holmberg@live.com" }]
 classifiers = [
@@ -22,11 +22,14 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-    "jsonargparse[signatures]>=4.42.0",
-    "lightning>=2.5.5",
+    "jsonargparse[signatures]>=4.43.0",
+    "lightning>=2.5.6",
     "networkx>=3.5",
-    "pydantic>=2.11.7",
-    "torch>=2.9.0",
+    "numpy>=2.3.3",
+    "pydantic>=2.12.4",
+    "pytest>=9.0.1",
+    "scipy>=1.16.3",
+    "torch>=2.9.1",
 ]
 
 [project.urls]
@@ -52,13 +55,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [dependency-groups]
 dev = [
-    "matplotlib>=3.10.6",
-    "mlflow>=3.3.2",
-    "mypy>=1.17.1",
-    "mypy-extensions>=1.1.0",
-    "pytest>=8.4.2",
-    "scipy-stubs>=1.16.1.1",
-    "types-networkx>=3.5.0.20250901",
 ]
 
 [tool.mypy]
@@ -69,10 +65,11 @@ check_untyped_defs=true
 
 [tool.uv.sources]
 torch = [
-  { index = "pytorch-cpu" },
+  { index = "pytorch-gpu" },
 ]
 
 [[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
+name = "pytorch-gpu"
+url = "https://download.pytorch.org/whl/rocm6.4"
+#url = "https://download.pytorch.org/whl/cpu"
+#explicit = true

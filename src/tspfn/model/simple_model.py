@@ -73,6 +73,10 @@ class SimpleModel(lightning.LightningModule):
 
 
 if __name__ == "__main__":
+    print(torch.__version__)
+    print(torch.cuda.is_available())
+    print(torch.cuda.get_device_name(0))
+    device = "cuda"
     model = SimpleModel(
         input_dim=64,
         model_dim=64,
@@ -85,9 +89,18 @@ if __name__ == "__main__":
         is_causal=False,
     )
     model.configure_model()
+    model.to(device)
     inp = torch.nested.nested_tensor(
-        tensor_list=[torch.rand(100, 64), torch.rand(10, 64), torch.rand(1000, 64)], layout=torch.jagged
+        tensor_list=[
+            torch.rand(100, 64, dtype=torch.float32),
+            torch.rand(10, 64, dtype=torch.float32),
+            torch.rand(1000, 64, dtype=torch.float32),
+        ],
+        layout=torch.jagged,
+        dtype=torch.float32,
+        device=device,
     )
+    # inp = torch.rand(2, 100, 64, dtype=torch.float32).to(device)
     # print(inp.size)
     out = model(inp)
     print(out.shape)

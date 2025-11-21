@@ -6,3 +6,6 @@ This means recreating the data generation procedure described in the TabPFN pape
 ## License
 
 `tspfn` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
+
+
+Setup with ROCm recuires TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1
