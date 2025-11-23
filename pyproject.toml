@@ -7,7 +7,7 @@ name = "tspfn"
 version = "0.0.1"
 description = ''
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = "==3.12.*"
 keywords = []
 authors = [{ name = "H. Anton", email = "anton.holmberg@live.com" }]
 classifiers = [
@@ -29,7 +29,10 @@ dependencies = [
     "pydantic>=2.12.4",
     "pytest>=9.0.1",
     "scipy>=1.16.3",
-    "torch>=2.9.1",
+    "torch>=2.8.0",
+    "torchaudio>=2.8.0",
+    "torchvision>=0.23.0",
+    "triton>=3.4.0",
 ]
 
 [project.urls]
@@ -64,12 +67,16 @@ non_interactive=true
 check_untyped_defs=true
 
 [tool.uv.sources]
-torch = [
-  { index = "pytorch-gpu" },
-]
+torch = {path = "/torch-2.8.0+rocm7.1.0.lw.git7a520360-cp312-cp312-linux_x86_64.whl"}
+torchaudio = {path = "/torchaudio-2.8.0+rocm7.1.0.git6e1c7fe9-cp312-cp312-linux_x86_64.whl"}
+torchvision = {path = "/torchvision-0.23.0+rocm7.1.0.git824e8c87-cp312-cp312-linux_x86_64.whl"}
+triton = {path = "/triton-3.4.0+rocm7.1.0.gitf9e5bf54-cp312-cp312-linux_x86_64.whl"}
+#torch = [
+  #{ index = "pytorch-gpu" },
+#]
 
-[[tool.uv.index]]
-name = "pytorch-gpu"
-url = "https://download.pytorch.org/whl/rocm6.4"
+#[[tool.uv.index]]
+#name = "pytorch-gpu"
+#url = "https://download.pytorch.org/whl/rocm6.4"
 #url = "https://download.pytorch.org/whl/cpu"
 #explicit = true
