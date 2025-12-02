@@ -104,34 +104,10 @@ class Attention(nn.Module):
         key = key.unflatten(-1, [self.n_heads, self.dim_head]).transpose(1, 2).contiguous().clone()
         # (N, L_s, total_embedding_dim) -> (N, L_s, n_heads, dim_head) -> (N, n_heads, L_s, dim_head)
         value = value.unflatten(-1, [self.n_heads, self.dim_head]).transpose(1, 2).contiguous().clone()
-        if query.is_contiguous() is False:
-            print("query is not contigous")
-        if key.is_contiguous() is False:
-            print("key is not contigous")
-        if value.is_contiguous() is False:
-            print("value is not contigous")
-        print(f"query.is_contiguous(): {query.is_contiguous()}")
-        print(f"query.is_nested: {query.is_nested}")
-        print(f"query._values.is_contiguous(): {query._values.is_contiguous()}")
-        print(f"query.shape: {query.shape}")
-        print(f"query._values.stride(): {query._values.stride()}")
 
-        # Step 3. Run SDPA
-        # (N, n_heads, L_t, dim_head)
-        # with torch.nn.attention.sdpa_kernel(torch.nn.attention.SDPBackend.MATH):
-        #            attn_output = F.scaled_dot_product_attention(query, key, value, dropout_p=self.dropout, is_causal=is_causal)
-        #       if query.is_nested:
-        scale = self.dim_head**-0.5
-        attn_weights = torch.matmul(query, key.transpose(-2, -1)) * scale
-        if is_causal:
-            # For nested tensors, need to handle masking per-sequence
-            attn_weights = self._apply_causal_mask_nested(attn_weights)
-            attn_weights = torch.softmax(attn_weights, dim=-1)
-            attn_weights = F.dropout(attn_weights, p=self.dropout, training=self.training)
-            attn_output = torch.matmul(attn_weights, value)
-        else:
-            attn_output = F.scaled_dot_product_attention(query, key, value, dropout_p=self.dropout, is_causal=is_causal)
-            # (N, n_heads, L_t, dim_head) -> (N, L_t, n_heads, dim_head) -> (N, L_t, total_embedding_dim)
+        attn_output = F.scaled_dot_product_attention(query, key, value, dropout_p=self.dropout, is_causal=is_causal)
+
+        # (N, n_heads, L_t, dim_head) -> (N, L_t, n_heads, dim_head) -> (N, L_t, total_embedding_dim)
         attn_output = attn_output.transpose(1, 2).flatten(-2)
 
         # Step 4. Apply output projection
@@ -140,6 +116,7 @@ class Attention(nn.Module):
 
 
 if __name__ == "__main__":
+    device = "cuda"
     attention = Attention(
         embedding_dim_q=64,
         embedding_dim_k=64,
@@ -147,11 +124,11 @@ if __name__ == "__main__":
         total_embedding_dim=512,
         n_heads=8,
         dropout=0.0,
-    )
-    attention = torch.compile(attention)
+    ).to(device)
+    attention = attention.to(device)
     inp = torch.nested.nested_tensor(
-        tensor_list=[torch.rand(100, 64), torch.rand(10, 64), torch.rand(1000, 64)], layout=torch.jagged
+        tensor_list=[torch.rand(100, 64), torch.rand(10, 64), torch.rand(1000, 64)], layout=torch.jagged, device=device
     )
-    # inp = torch.rand(2, 1000, 64)
+    inp = torch.rand(2, 1000, 64).to(device)
     out = attention(inp, inp, inp)
-    print(inp, out)
+    print(inp.shape, out.shape)

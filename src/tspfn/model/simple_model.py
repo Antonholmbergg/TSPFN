@@ -81,11 +81,11 @@ if __name__ == "__main__":
         input_dim=64,
         model_dim=64,
         n_attention_heads=8,
-        n_transformer_blocks=4,
+        n_transformer_blocks=3,
         loss=nn.MSELoss(),
         dim_feedforward=512,
         output_dim=64,
-        # torch_compile=True,
+        torch_compile=False,
         is_causal=False,
     )
     model.configure_model()

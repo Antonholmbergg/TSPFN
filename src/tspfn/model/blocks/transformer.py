@@ -43,4 +43,4 @@ class TransformerBlock(nn.Module):
         """for now the q/k/v will always be the same"""
         x = self.attention_norm(x)
         h = x + self.attention(query=x, key=x, value=x, is_causal=self.is_causal)
-        return h + self.feed_forward(self.ffn_norm(h))
+        return (h + self.feed_forward(self.ffn_norm(h))).contiguous()
